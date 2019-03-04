@@ -148,8 +148,8 @@ substituteProd :: Substitute as bs x y -> (f x -> f y) -> Prod f as -> Prod f bs
 shiftIndex :: Insert as bs x -> Index as y -> Index bs y
 
 -- | Used as the return type of <a>unshiftIndex</a>. An
---   <tt><a>Unshifted</a> bs x y</tt> Is like a <tt><a>Maybe</a>
---   (<a>Insert</a> bs y)</tt>, except the <a>Nothing</a> case witnesses
+--   <tt><a>Unshifted</a> bs x y</tt> is like a <tt><a>Maybe</a>
+--   (<a>Index</a> bs y)</tt>, except the <a>Nothing</a> case witnesses
 --   that <tt>x ~ y</tt>.
 data Unshifted :: [k] -> k -> k -> Type
 [GotDeleted] :: Unshifted bs x x
@@ -171,6 +171,32 @@ unshiftIndex :: Delete as bs x -> Index as y -> Unshifted bs x y
 --   can be used if you don't care about witnessing that <tt>x ~ y</tt> in
 --   the case that the index is the item that is deleted.
 unshiftIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
+
+-- | Used as the return type of <a>reshiftIndex</a>. An
+--   <tt><a>Reshifted</a> bs x y z</tt> is like an <tt><a>Either</a>
+--   (<a>Index</a> bs y) (<a>Index</a> bs z)</tt>, except the <a>Left</a>
+--   case witnesses that <tt>x ~ z</tt>.
+data Reshifted :: [k] -> k -> k -> k -> Type
+[GotSubbed] :: Index bs y -> Reshifted bs z y z
+[NotSubbed] :: Index bs z -> Reshifted bs x y z
+
+-- | If you substitute an item in <tt>as</tt> to create <tt>bs</tt>, you
+--   also need to reshift <tt><a>Index</a> as z</tt> into <tt><a>Index</a>
+--   bs z</tt>. This reshifts the <a>Index</a> in <tt>as</tt> to become an
+--   <a>Index</a> in <tt>bs</tt>, making sure the index points to the same
+--   original value.
+--   
+--   However, there is a possibility that the substituted item is the item
+--   that the index was originally pointing to. If this is the case, this
+--   function returns <a>GotSubbed</a>, a witness that <tt>x ~ z</tt>.
+--   Otherwise, it returns <a>NotSubbed</a>. Both contain the updated
+--   index.
+reshiftIndex :: Substitute as bs x y -> Index as z -> Reshifted bs x y z
+
+-- | A version of <a>reshiftIndex</a> returning a simple <a>Either</a>.
+--   This can be the case if you don't care about witnessing <tt>x ~ z</tt>
+--   in the case that the index is the item that was substituted.
+reshiftIndex_ :: Substitute as bs x y -> Index as z -> Either (Index bs y) (Index bs z)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Insert as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Delete as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Substitute as bs x y)

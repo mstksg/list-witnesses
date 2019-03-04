@@ -87,8 +87,8 @@ delToIns :: Delete as bs x -> Insert bs as x
 --   Some examples:
 --   
 --   <pre>
---   SubZ             :: Subsitute '[1,2,3] '[4,2,3] 1 4
---   SubS SubZ        :: Subsitute '[1,2,3] '[1,4,3] 2 4
+--   SubZ             :: Substitute '[1,2,3] '[4,2,3] 1 4
+--   SubS SubZ        :: Substitute '[1,2,3] '[1,4,3] 2 4
 --   SubS (SubS SubZ) :: Substitute '[1,2,3] '[1,2,4] 3 4
 --   </pre>
 data Substitute :: [k] -> [k] -> k -> k -> Type
@@ -191,10 +191,35 @@ module Data.Type.List.Sublist
 --   PreS (PreS PreZ)        :: Prefix '[1,2]   '[1,2,3]
 --   PreS (PreS (PreS PreZ)) :: Prefix '[1,2,3] '[1,2,3]
 --   </pre>
+--   
+--   Rule of thumb for construction: the number of <a>PreS</a> is the
+--   number of items in the prefix.
 data Prefix :: [k] -> [k] -> Type
 [PreZ] :: Prefix '[] as
 [PreS] :: Prefix as bs -> Prefix (a : as) (a : bs)
 
+-- | A <tt><a>Suffix</a> as bs</tt> witnesses that <tt>as</tt> is a suffix
+--   of <tt>bs</tt>.
+--   
+--   Some examples:
+--   
+--   <pre>
+--   SufZ                      :: Suffix '[1,2,3] '[1,2,3]
+--   SufS SufZ                 :: Suffix   '[2,3] '[1,2,3]
+--   SufS (SufS SufZ)          :: Suffix     '[3] '[1,2,3]
+--   SufS (SufS (SufS (SufZ))) :: Suffix      '[] '[1,2,3]
+--   </pre>
+--   
+--   Rule of thumb for construction: the number of <a>SufS</a> is the
+--   number of items to "drop" before getting the suffix.
+data Suffix :: [k] -> [k] -> Type
+[SufZ] :: Suffix as as
+[SufS] :: Suffix as bs -> Suffix as (b : bs)
+
 -- | Take items from a <a>Prod</a> corresponding to a given <a>Prefix</a>.
 takeProd :: Prefix as bs -> Prod f bs -> Prod f as
+
+-- | Drop items from a <a>Prod</a> corresponding to a given <a>Suffix</a>.
+dropProd :: Suffix as bs -> Prod f bs -> Prod f as
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
+instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)

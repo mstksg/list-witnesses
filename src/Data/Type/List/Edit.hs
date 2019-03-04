@@ -81,8 +81,8 @@ delToIns = \case
 -- Some examples:
 --
 -- @
--- SubZ             :: Subsitute '[1,2,3] '[4,2,3] 1 4
--- SubS SubZ        :: Subsitute '[1,2,3] '[1,4,3] 2 4
+-- SubZ             :: Substitute '[1,2,3] '[4,2,3] 1 4
+-- SubS SubZ        :: Substitute '[1,2,3] '[1,4,3] 2 4
 -- SubS (SubS SubZ) :: Substitute '[1,2,3] '[1,2,4] 3 4
 -- @
 --

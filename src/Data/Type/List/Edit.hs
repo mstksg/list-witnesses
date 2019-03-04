@@ -1,9 +1,11 @@
-{-# LANGUAGE EmptyCase      #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE TypeInType     #-}
-{-# LANGUAGE TypeOperators  #-}
+{-# LANGUAGE EmptyCase           #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TypeInType          #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Data.Type.List.Edit (
   -- * Simple edits
@@ -18,14 +20,16 @@ module Data.Type.List.Edit (
   , flipEdit
   -- * Product
   , insertProd, deleteProd, deleteGetProd
+  , lensProd, substituteProd
   -- * Index
   , shiftIndex, Unshifted(..), unshiftIndex, unshiftIndex_
   ) where
 
+import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Type.List.Prod
 import           Data.Type.Universe
-import qualified Control.Category       as C
+import qualified Control.Category      as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
 -- position in list @as@ to produce list @bs@.
@@ -41,6 +45,8 @@ import qualified Control.Category       as C
 data Insert :: [k] -> [k] -> k -> Type where
     InsZ :: Insert as (x ': as) x
     InsS :: Insert as bs x -> Insert (a ': as) (a ': bs) x
+
+deriving instance Show (Insert as bs x)
 
 insToDel :: Insert as bs x -> Delete bs as x
 insToDel = \case
@@ -60,6 +66,8 @@ insToDel = \case
 data Delete :: [k] -> [k] -> k -> Type where
     DelZ :: Delete (x ': as) as x
     DelS :: Delete as bs x -> Delete (a ': as) (a ': bs) x
+
+deriving instance Show (Delete as bs x)
 
 -- | Flip a deletion
 delToIns :: Delete as bs x -> Insert bs as x
@@ -82,6 +90,8 @@ data Substitute :: [k] -> [k] -> k -> k -> Type where
     SubZ :: Substitute (x ': as) (y ': as) x y
     SubS :: Substitute as bs x y -> Substitute (c ': as) (c ': bs) x y
 
+deriving instance Show (Substitute as bs x y)
+
 -- | Flip a substitution
 flipSub :: Substitute as bs x y -> Substitute bs as y x
 flipSub = \case
@@ -95,6 +105,8 @@ data Edit :: [k] -> [k] -> Type where
     EIns :: Insert bs cs x -> Edit as bs -> Edit as cs
     EDel :: Delete bs cs x -> Edit as bs -> Edit as cs
     ESub :: Substitute bs cs x y -> Edit as bs -> Edit as cs
+
+deriving instance Show (Edit as bs)
 
 -- | Compose two 'Edit's
 compEdit :: Edit as bs -> Edit bs cs -> Edit as cs
@@ -141,6 +153,43 @@ deleteProd = \case
     DelS d -> \case
       x :< xs -> x :< deleteProd d xs
 
+-- | A type-changing lens into a value in a 'Prod', given a 'Substitute'
+-- indicating which value.  This lens can change the type of the value,
+-- unlike 'lensProd''.
+--
+-- Read this type signature as:
+--
+-- @
+-- 'lensProd'
+--     :: 'Substitute' as bs x y
+--     -> Lens ('Prod' g as) (Prod g bs) (g x) (g y)
+-- @
+lensProd
+    :: forall as bs x y g f. Functor f
+    => Substitute as bs x y
+    -> (g x -> f (g y))
+    -> Prod g as
+    -> f (Prod g bs)
+lensProd s0 f = go s0
+  where
+    go  :: Substitute cs ds x y
+        -> Prod g cs
+        -> f (Prod g ds)
+    go = \case
+      SubZ -> \case
+        x :< xs -> (:< xs) <$> f x
+      SubS s -> \case
+        x :< xs -> (x :<) <$> go s xs
+
+-- | Substitute a value in a 'Prod' at a given position, indicated by the
+-- 'Substitute'.  This is essentially a specialized version of 'lensProd'.
+substituteProd
+    :: Substitute as bs x y
+    -> (f x -> f y)
+    -> Prod f as
+    -> Prod f bs
+substituteProd s f = runIdentity . lensProd s (Identity . f)
+
 -- | If you add an item to @as@ to create @bs@, you also need to shift an
 -- @'Index' as y@ to @Index bs y@.  This shifts the 'Index' in @as@ to
 -- become an 'Index' in @bs@, but makes sure that the index points to the
@@ -152,9 +201,14 @@ shiftIndex = \case
       IZ   -> IZ
       IS i -> IS (shiftIndex ins i)
 
-data Unshifted :: [k] -> [k] -> k -> k -> Type where
-    GotDeleted :: Unshifted as bs x x
-    NotDeleted :: Index bs y -> Unshifted as bs x y
+-- | Used as the return type of 'unshiftIndex'.  An @'Unshifted' bs x y@ Is
+-- like a @'Maybe' ('Insert' bs y)@, except the 'Nothing' case witnesses
+-- that @x ~ y@.
+data Unshifted :: [k] -> k -> k -> Type where
+    GotDeleted :: Unshifted bs x x
+    NotDeleted :: Index bs y -> Unshifted bs x y
+
+deriving instance Show (Unshifted bs x y)
 
 -- | If you delete an item in @as@ to create @bs@, you also need to move
 -- @'Index' as y@ into @Index bs y@.  This transforms the 'Index' in @as@
@@ -165,7 +219,7 @@ data Unshifted :: [k] -> [k] -> k -> k -> Type where
 -- the index was originally pointing to.  If this is the case, this
 -- function returns 'GotDeleted', a witness that @x ~ y@.  Otherwise, it
 -- returns 'NotDeleted' with the unshifted index.
-unshiftIndex :: Delete as bs x -> Index as y -> Unshifted as bs x y
+unshiftIndex :: Delete as bs x -> Index as y -> Unshifted bs x y
 unshiftIndex = \case
     DelZ -> \case
       IZ   -> GotDeleted

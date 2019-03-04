@@ -22,7 +22,9 @@ module Data.Type.List.Edit (
   , insertProd, deleteProd, deleteGetProd
   , lensProd, substituteProd
   -- * Index
-  , shiftIndex, Unshifted(..), unshiftIndex, unshiftIndex_
+  , shiftIndex
+  , Unshifted(..), unshiftIndex, unshiftIndex_
+  , Reshifted(..), reshiftIndex, reshiftIndex_
   ) where
 
 import           Data.Functor.Identity
@@ -201,8 +203,8 @@ shiftIndex = \case
       IZ   -> IZ
       IS i -> IS (shiftIndex ins i)
 
--- | Used as the return type of 'unshiftIndex'.  An @'Unshifted' bs x y@ Is
--- like a @'Maybe' ('Insert' bs y)@, except the 'Nothing' case witnesses
+-- | Used as the return type of 'unshiftIndex'.  An @'Unshifted' bs x y@ is
+-- like a @'Maybe' ('Index' bs y)@, except the 'Nothing' case witnesses
 -- that @x ~ y@.
 data Unshifted :: [k] -> k -> k -> Type where
     GotDeleted :: Unshifted bs x x
@@ -237,3 +239,45 @@ unshiftIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
 unshiftIndex_ del i = case unshiftIndex del i of
     GotDeleted   -> Nothing
     NotDeleted j -> Just j
+
+-- | Used as the return type of 'reshiftIndex'.  An @'Reshifted' bs x y z@ is
+-- like an @'Either' ('Index' bs y) ('Index' bs z)@, except the 'Left' case
+-- witnesses that @x ~ z@.
+data Reshifted :: [k] -> k -> k -> k -> Type where
+    GotSubbed :: Index bs y -> Reshifted bs z y z
+    NotSubbed :: Index bs z -> Reshifted bs x y z
+
+-- | If you substitute an item in @as@ to create @bs@, you also need to
+-- reshift @'Index' as z@ into @'Index' bs z@.  This reshifts the 'Index'
+-- in @as@ to become an 'Index' in @bs@, making sure the index points to
+-- the same original value.
+--
+-- However, there is a possibility that the substituted item is the item
+-- that the index was originally pointing to.  If this is the case, this
+-- function returns 'GotSubbed', a witness that @x ~ z@.  Otherwise, it
+-- returns 'NotSubbed'.  Both contain the updated index.
+reshiftIndex
+    :: Substitute as bs x y
+    -> Index as z
+    -> Reshifted bs x y z
+reshiftIndex = \case
+    SubZ -> \case
+      IZ   -> GotSubbed IZ
+      IS i -> NotSubbed (IS i)
+    SubS s -> \case
+      IZ   -> NotSubbed IZ
+      IS i -> case reshiftIndex s i of
+        GotSubbed j -> GotSubbed (IS j)
+        NotSubbed j -> NotSubbed (IS j)
+
+-- | A version of 'reshiftIndex' returning a simple 'Either'.  This can be
+-- the case if you don't care about witnessing @x ~ z@ in the case that the
+-- index is the item that was substituted.
+reshiftIndex_
+    :: Substitute as bs x y
+    -> Index as z
+    -> Either (Index bs y) (Index bs z)
+reshiftIndex_ sub i = case reshiftIndex sub i of
+    GotSubbed j -> Left  j
+    NotSubbed j -> Right j
+    

@@ -30,7 +30,7 @@ module Data.Type.List.Sublist (
   -- * Append
   , Append(..)
   , prefixToAppend, suffixToAppend
-  , splitAppend
+  , appendToPrefix, appendToSuffix, splitAppend
   -- ** Product
   , splitProd, appendProd, splitProdIso
   -- ** Index
@@ -218,13 +218,26 @@ suffixToAppend = \case
     SufZ   -> ($ AppZ)
     SufS s -> \f -> suffixToAppend s (f . AppS)
 
--- | Split an 'Append' into a 'Prefix' and 'Suffix'.
+-- | Split an 'Append' into a 'Prefix' and 'Suffix'.  Basically
+-- 'appendToPrefix' and 'appendToSuffix' at the same time.
 splitAppend
     :: Append as bs cs
     -> (Prefix as cs, Suffix bs cs)
 splitAppend = \case
     AppZ   -> (PreZ, SufZ)
     AppS a -> bimap PreS SufS . splitAppend $ a
+
+-- | Convert an 'Append' to a 'Prefix', forgetting the suffix.
+appendToPrefix :: Append as bs cs -> Prefix as cs
+appendToPrefix = \case
+    AppZ   -> PreZ
+    AppS a -> PreS . appendToPrefix $ a
+
+-- | Convert an 'Append' to a 'Suffix', forgetting the prefix
+appendToSuffix :: Append as bs cs -> Suffix bs cs
+appendToSuffix = \case
+    AppZ   -> SufZ
+    AppS a -> SufS . appendToSuffix $ a
 
 -- | Split an 'Index' by an 'Append'.  If the 'Index' was in the first part
 -- of the list, it'll return 'Left'.  If it was int he second part, it'll

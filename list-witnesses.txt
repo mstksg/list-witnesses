@@ -74,6 +74,13 @@ prodSing :: Prod Sing as -> Sing as
 --   <a>Sing</a> elements.
 singProd :: Sing as -> Prod Sing as
 
+-- | Convert a <a>WitAll</a> into a <a>Prod</a>. This requires providing a
+--   singleton witnessing the structure of the list.
+allProd :: Sing as -> WitAll [] (TyCon1 f) as -> Prod f as
+
+-- | Convert a <a>Prod</a> into a <a>WitAll</a>.
+prodAll :: Prod f as -> WitAll [] (TyCon1 f) as
+
 
 -- | Witnesses regarding single-item edits of lists.
 module Data.Type.List.Edit

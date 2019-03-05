@@ -1,19 +1,31 @@
-{-# LANGUAGE EmptyCase          #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeInType         #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE EmptyCase           #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeInType          #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Data.Type.List.Sublist (
     Prefix(..)
   , Suffix(..)
   , takeProd
   , dropProd
+  , prefixLens
+  , suffixLens
+  , Append(..)
+  , splitProd, appendProd, splitProdIso
+  , prefixToAppend, suffixToAppend
+  , splitAppend
   ) where
 
+import           Control.Applicative
+import           Data.Bifunctor
 import           Data.Kind
+import           Data.Profunctor
 import           Data.Type.List.Prod
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
@@ -29,18 +41,38 @@ import           Data.Type.List.Prod
 --
 -- Rule of thumb for construction: the number of 'PreS' is the number of
 -- items in the prefix.
+--
+-- This is essentially the first half of an 'Append', but is conceptually
+-- easier to work with.
 data Prefix :: [k] -> [k] -> Type where
     PreZ :: Prefix '[] as
     PreS :: Prefix  as bs -> Prefix  (a ': as) (a ': bs)
 
 deriving instance Show (Prefix as bs)
 
+-- | A lens into the prefix of a 'Prod'.
+--
+-- Read this type signature as:
+--
+-- @
+-- 'prefixLens'
+--     :: Prefix as bs
+--     -> Lens' (Prod f bs) (Prod f as)
+-- @
+prefixLens
+    :: forall as bs g f. Functor f
+    => Prefix as bs
+    -> (Prod g as -> f (Prod g as))
+    -> Prod g bs
+    -> f (Prod g bs)
+prefixLens p = prefixToAppend p $ \a -> splitProdIso a . _1
+  where
+    _1 :: (a -> f b) -> (a, c) -> f (b, c)
+    _1 f (x, y) = (, y) <$> f x
+
 -- | Take items from a 'Prod' corresponding to a given 'Prefix'.
 takeProd :: Prefix as bs -> Prod f bs -> Prod f as
-takeProd = \case
-    PreZ   -> \_ -> Ø
-    PreS p -> \case
-      x :< xs -> x :< takeProd p xs
+takeProd p = getConst . prefixLens p Const
 
 -- | A @'Suffix' as bs@ witnesses that @as@ is a suffix of @bs@.
 --
@@ -55,15 +87,125 @@ takeProd = \case
 --
 -- Rule of thumb for construction: the number of 'SufS' is the number of
 -- items to "drop" before getting the suffix.
+--
+-- This is essentially the second half of an 'Append', but is conceptually
+-- easier to work with.
 data Suffix :: [k] -> [k] -> Type where
     SufZ :: Suffix as as
     SufS :: Suffix as bs -> Suffix as (b ': bs)
 
 deriving instance Show (Suffix as bs)
 
+-- | A lens into the suffix of a 'Prod'.
+--
+-- Read this type signature as:
+--
+-- @
+-- 'suffixLens'
+--     :: Suffix as bs
+--     -> Lens' (Prod f bs) (Prod f as)
+-- @
+suffixLens
+    :: forall as bs g f. Functor f
+    => Suffix as bs
+    -> (Prod g as -> f (Prod g as))
+    -> Prod g bs
+    -> f (Prod g bs)
+suffixLens p = suffixToAppend p $ \a -> splitProdIso a . _2
+  where
+    _2 :: (a -> f b) -> (c, a) -> f (c, b)
+    _2 f (x, y) = (x ,) <$> f y
+
 -- | Drop items from a 'Prod' corresponding to a given 'Suffix'.
 dropProd :: Suffix as bs -> Prod f bs -> Prod f as
-dropProd = \case
-    SufZ   -> id
-    SufS s -> \case
-      _ :< xs -> dropProd s xs
+dropProd p = getConst . suffixLens p Const
+
+-- | An @'Append' as bs cs@ witnesses that @cs@ is the result of appending
+-- @as@ and @bs@.
+--
+-- Some examples:
+--
+-- @
+-- AppZ                     :: Append '[]  '[1,2]   '[1,2]
+-- AppZ                     :: Append '[]  '[1,2,3] '[1,2,3]
+-- AppS AppZ                :: Append '[0] '[1,2]   '[0,1,2]
+-- @
+--
+-- Rule of thumb for construction: the number of 'AppS' is the number of
+-- items in the /first/ list.
+--
+-- This basically combines 'Prefix' and 'Suffix'.
+data Append :: [k] -> [k] -> [k] -> Type where
+    AppZ :: Append '[] as as
+    AppS :: Append as bs cs -> Append (a ': as) bs (a ': cs)
+
+deriving instance Show (Append as bs cs)
+
+-- | Witness an isomorphism between 'Prod' and two parts that compose it.
+--
+-- Read this type signature as:
+--
+-- @
+-- 'splitProdIso'
+--     :: Append as  bs  cs
+--     -> Iso (Prod f cs)            (Prod f cs)
+--            (Prod f as, Prod f bs) (Prod f as, Prod f bs)
+-- @
+--
+-- This can be used with the combinators from the lens library.
+--
+-- The 'Append' tells the point to split the 'Prod' at.
+splitProdIso
+    :: (Profunctor p, Functor f)
+    => Append as  bs  cs
+    -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs))
+    -> p (Prod g cs)            (f (Prod g cs))
+splitProdIso a = dimap (splitProd a) ((fmap . uncurry) (appendProd a))
+
+-- | Split a 'Prod' into a prefix and suffix.  Basically 'takeProd'
+-- and 'dropProd' combined.
+splitProd
+    :: Append as bs cs
+    -> Prod f cs
+    -> (Prod f as, Prod f bs)
+splitProd = \case
+    AppZ   -> (Ø,)
+    AppS a -> \case
+      x :< xs -> first (x :<) . splitProd a $ xs
+
+-- | Append two 'Prod's together according to an 'Append'.
+appendProd
+    :: Append as bs cs
+    -> Prod f as
+    -> Prod f bs
+    -> Prod f cs
+appendProd = \case
+    AppZ   -> \_ -> id
+    AppS a -> \case
+      x :< xs -> (x :<) . appendProd a xs
+
+-- | Convert a 'Prefix' to an 'Append', with an existential @bs@.
+prefixToAppend
+    :: Prefix as cs
+    -> (forall bs. Append as bs cs -> r)
+    -> r
+prefixToAppend = \case
+    PreZ   -> ($ AppZ)
+    PreS p -> \f -> prefixToAppend p (f . AppS)
+
+-- | Convert a 'Suffix' to an 'Append', with an existential @as@.
+suffixToAppend
+    :: Suffix bs cs
+    -> (forall as. Append as bs cs -> r)
+    -> r
+suffixToAppend = \case
+    SufZ   -> ($ AppZ)
+    SufS s -> \f -> suffixToAppend s (f . AppS)
+
+-- | Split an 'Append' into a 'Prefix' and 'Suffix'.
+splitAppend
+    :: Append as bs cs
+    -> (Prefix as cs, Suffix bs cs)
+splitAppend = \case
+    AppZ   -> (PreZ, SufZ)
+    AppS a -> bimap PreS SufS . splitAppend $ a

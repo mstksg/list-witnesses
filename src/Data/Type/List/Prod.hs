@@ -10,6 +10,8 @@ module Data.Type.List.Prod (
     Prod(..), pNil
   , indexProd
   , lensProd'
+  , headProd
+  , tailProd
   ) where
 
 import           Control.Applicative
@@ -35,6 +37,14 @@ infixr 5 :<
 -- | Alias for 'Ø'
 pNil :: Prod f '[]
 pNil = Ø
+
+headProd :: Prod f (a ': as) -> f a
+headProd = \case
+    x :< _ -> x
+
+tailProd :: Prod f (a ': as) -> Prod f as
+tailProd = \case
+    _ :< xs -> xs
 
 -- | Retrieve an element in a 'Prod' at a given index.
 indexProd :: Index as x -> Prod f as -> f x

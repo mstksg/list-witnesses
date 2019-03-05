@@ -355,7 +355,15 @@ prefixToAppend :: Prefix as cs -> (forall bs. Append as bs cs -> r) -> r
 --   <tt>as</tt>.
 suffixToAppend :: Suffix bs cs -> (forall as. Append as bs cs -> r) -> r
 
+-- | Convert an <a>Append</a> to a <a>Prefix</a>, forgetting the suffix.
+appendToPrefix :: Append as bs cs -> Prefix as cs
+
+-- | Convert an <a>Append</a> to a <a>Suffix</a>, forgetting the prefix
+appendToSuffix :: Append as bs cs -> Suffix bs cs
+
 -- | Split an <a>Append</a> into a <a>Prefix</a> and <a>Suffix</a>.
+--   Basically <a>appendToPrefix</a> and <a>appendToSuffix</a> at the same
+--   time.
 splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
 
 -- | Split a <a>Prod</a> into a prefix and suffix. Basically

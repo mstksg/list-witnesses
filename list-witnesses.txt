@@ -251,6 +251,22 @@ substituteIndex :: Substitute as bs x y -> Index as z -> SubstitutedIx bs x y z
 --   This can be the case if you don't care about witnessing <tt>x ~ z</tt>
 --   in the case that the index is the item that was substituted.
 substituteIndex_ :: Substitute as bs x y -> Index as z -> Either (Index bs y) (Index bs z)
+
+-- | Given an <a>Index</a> pointing to an element, create a <a>Delete</a>
+--   corresponding to the given item. The type of the resulting list is
+--   existentially quantified, is guaranteed to be just exactly the
+--   original list minus the specified element.
+withDelete :: Index as x -> (forall bs. Delete as bs x -> r) -> r
+
+-- | Given an <a>Index</a> pointing to an element, create an <a>Insert</a>
+--   placing an item <i>directly before</i> the given element. The type is
+--   existentailly quantified.
+withInsert :: Index as x -> (forall bs. Insert as bs y -> r) -> r
+
+-- | Given an <a>Index</a> pointing to an element, create an <a>Insert</a>
+--   placing an item <i>directly after</i> the given element. The type is
+--   existentailly quantified.
+withInsertAfter :: Index as x -> (forall bs. Insert as bs y -> r) -> r
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Insert as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Delete as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Substitute as bs x y)

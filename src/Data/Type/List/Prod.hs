@@ -25,8 +25,12 @@ module Data.Type.List.Prod (
   , indexProd
   -- * Traversals
   , mapProd, traverseProd, foldMapProd, zipProd
-  -- * With Singletons
+  -- * Conversion
+  -- ** With Singletons
   , prodSing, singProd
+  -- ** Quantification
+  , allProd
+  , prodAll
   ) where
 
 import           Control.Applicative

@@ -119,9 +119,11 @@ data Insert :: [k] -> [k] -> k -> Type
 data Delete :: [k] -> [k] -> k -> Type
 [DelZ] :: Delete (x : as) as x
 [DelS] :: Delete as bs x -> Delete (a : as) (a : bs) x
+
+-- | Flip an insertion.
 insToDel :: Insert as bs x -> Delete bs as x
 
--- | Flip a deletion
+-- | Flip a deletion.
 delToIns :: Delete as bs x -> Insert bs as x
 
 -- | A <tt><a>Substitute</a> as bs x y</tt> is a witness that you can
@@ -158,7 +160,9 @@ data Edit :: [k] -> [k] -> Type
 -- | Compose two <a>Edit</a>s
 compEdit :: Edit as bs -> Edit bs cs -> Edit as cs
 
--- | Reverse an <a>Edit</a> script. O(n^2).
+-- | Reverse an <a>Edit</a> script. O(n^2). Please do not use.
+--   
+--   TODO: Make O(n) using diff lists.
 flipEdit :: Edit as bs -> Edit bs as
 
 -- | Insert a value into a <a>Prod</a>, at a position indicated by the
@@ -196,15 +200,14 @@ substituteProd :: Substitute as bs x y -> (f x -> f y) -> Prod f as -> Prod f bs
 --   shifts the <a>Index</a> in <tt>as</tt> to become an <a>Index</a> in
 --   <tt>bs</tt>, but makes sure that the index points to the same original
 --   value.
-shiftIndex :: Insert as bs x -> Index as y -> Index bs y
+insertIndex :: Insert as bs x -> Index as y -> Index bs y
 
--- | Used as the return type of <a>unshiftIndex</a>. An
---   <tt><a>Unshifted</a> bs x y</tt> is like a <tt><a>Maybe</a>
---   (<a>Index</a> bs y)</tt>, except the <a>Nothing</a> case witnesses
---   that <tt>x ~ y</tt>.
-data Unshifted :: [k] -> k -> k -> Type
-[GotDeleted] :: Unshifted bs x x
-[NotDeleted] :: Index bs y -> Unshifted bs x y
+-- | Used as the return type of <a>deleteIndex</a>. An <tt><a>DeletedIx</a>
+--   bs x y</tt> is like a <tt><a>Maybe</a> (<a>Index</a> bs y)</tt>,
+--   except the <a>Nothing</a> case witnesses that <tt>x ~ y</tt>.
+data DeletedIx :: [k] -> k -> k -> Type
+[GotDeleted] :: DeletedIx bs x x
+[NotDeleted] :: Index bs y -> DeletedIx bs x y
 
 -- | If you delete an item in <tt>as</tt> to create <tt>bs</tt>, you also
 --   need to move <tt><a>Index</a> as y</tt> into <tt>Index bs y</tt>. This
@@ -216,20 +219,20 @@ data Unshifted :: [k] -> k -> k -> Type
 --   the index was originally pointing to. If this is the case, this
 --   function returns <a>GotDeleted</a>, a witness that <tt>x ~ y</tt>.
 --   Otherwise, it returns <a>NotDeleted</a> with the unshifted index.
-unshiftIndex :: Delete as bs x -> Index as y -> Unshifted bs x y
+deleteIndex :: Delete as bs x -> Index as y -> DeletedIx bs x y
 
--- | A version of <a>unshiftIndex</a> returning a simple <a>Maybe</a>. This
+-- | A version of <a>deleteIndex</a> returning a simple <a>Maybe</a>. This
 --   can be used if you don't care about witnessing that <tt>x ~ y</tt> in
 --   the case that the index is the item that is deleted.
-unshiftIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
+deleteIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
 
--- | Used as the return type of <a>reshiftIndex</a>. An
---   <tt><a>Reshifted</a> bs x y z</tt> is like an <tt><a>Either</a>
+-- | Used as the return type of <a>substituteIndex</a>. An
+--   <tt><a>SubstitutedIx</a> bs x y z</tt> is like an <tt><a>Either</a>
 --   (<a>Index</a> bs y) (<a>Index</a> bs z)</tt>, except the <a>Left</a>
 --   case witnesses that <tt>x ~ z</tt>.
-data Reshifted :: [k] -> k -> k -> k -> Type
-[GotSubbed] :: Index bs y -> Reshifted bs z y z
-[NotSubbed] :: Index bs z -> Reshifted bs x y z
+data SubstitutedIx :: [k] -> k -> k -> k -> Type
+[GotSubbed] :: Index bs y -> SubstitutedIx bs z y z
+[NotSubbed] :: Index bs z -> SubstitutedIx bs x y z
 
 -- | If you substitute an item in <tt>as</tt> to create <tt>bs</tt>, you
 --   also need to reshift <tt><a>Index</a> as z</tt> into <tt><a>Index</a>
@@ -242,17 +245,17 @@ data Reshifted :: [k] -> k -> k -> k -> Type
 --   function returns <a>GotSubbed</a>, a witness that <tt>x ~ z</tt>.
 --   Otherwise, it returns <a>NotSubbed</a>. Both contain the updated
 --   index.
-reshiftIndex :: Substitute as bs x y -> Index as z -> Reshifted bs x y z
+substituteIndex :: Substitute as bs x y -> Index as z -> SubstitutedIx bs x y z
 
--- | A version of <a>reshiftIndex</a> returning a simple <a>Either</a>.
+-- | A version of <a>substituteIndex</a> returning a simple <a>Either</a>.
 --   This can be the case if you don't care about witnessing <tt>x ~ z</tt>
 --   in the case that the index is the item that was substituted.
-reshiftIndex_ :: Substitute as bs x y -> Index as z -> Either (Index bs y) (Index bs z)
+substituteIndex_ :: Substitute as bs x y -> Index as z -> Either (Index bs y) (Index bs z)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Insert as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Delete as bs x)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Substitute as bs x y)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Edit.Edit as bs)
-instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Unshifted bs x y)
+instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.DeletedIx bs x y)
 instance Control.Category.Category Data.Type.List.Edit.Edit
 
 
@@ -297,7 +300,16 @@ prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Pr
 -- | Shave off the final inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given prefix. If the index is out of range,
 --   <a>Nothing</a> will be returned.
+--   
+--   This is essentially <a>splitIndex</a>, but taking only <a>Left</a>
+--   results.
 takeIndex :: Prefix as bs -> Index bs x -> Maybe (Index as x)
+
+-- | An index pointing to a given item in a prefix is also an index
+--   pointing to the same item in the full list. This "weakens" the bounds
+--   of an index, widening the list at the end but preserving the original
+--   index. This is the inverse of <a>takeIndex</a>.
+weakenIndex :: Prefix as bs -> Index as x -> Index bs x
 
 -- | A <tt><a>Suffix</a> as bs</tt> witnesses that <tt>as</tt> is a suffix
 --   of <tt>bs</tt>.
@@ -305,10 +317,10 @@ takeIndex :: Prefix as bs -> Index bs x -> Maybe (Index as x)
 --   Some examples:
 --   
 --   <pre>
---   SufZ                      :: Suffix '[1,2,3] '[1,2,3]
---   SufS SufZ                 :: Suffix   '[2,3] '[1,2,3]
---   SufS (SufS SufZ)          :: Suffix     '[3] '[1,2,3]
---   SufS (SufS (SufS (SufZ))) :: Suffix      '[] '[1,2,3]
+--   SufZ                    :: Suffix '[1,2,3] '[1,2,3]
+--   SufS SufZ               :: Suffix   '[2,3] '[1,2,3]
+--   SufS (SufS SufZ)        :: Suffix     '[3] '[1,2,3]
+--   SufS (SufS (SufS SufZ)) :: Suffix      '[] '[1,2,3]
 --   </pre>
 --   
 --   Rule of thumb for construction: the number of <a>SufS</a> is the
@@ -337,7 +349,15 @@ suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Prod g as -> f (Pr
 -- | Shave off the initial inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given suffix If the index is out of range,
 --   <a>Nothing</a> will be returned.
+--   
+--   This is essentially <a>splitIndex</a>, but taking only <a>Right</a>
+--   results.
 dropIndex :: Suffix as bs -> Index bs x -> Maybe (Index as x)
+
+-- | An index pointing to a given item in a suffix can be transformed into
+--   an index pointing to the same item in the full list. This is the
+--   inverse of <a>dropIndex</a>.
+shiftIndex :: Suffix as bs -> Index as x -> Index bs x
 
 -- | An <tt><a>Append</a> as bs cs</tt> witnesses that <tt>cs</tt> is the
 --   result of appending <tt>as</tt> and <tt>bs</tt>.
@@ -402,8 +422,11 @@ appendProd :: Append as bs cs -> Prod f as -> Prod f bs -> Prod f cs
 splitProdIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs)) -> p (Prod g cs) (f (Prod g cs))
 
 -- | Split an <a>Index</a> by an <a>Append</a>. If the <a>Index</a> was in
---   the first part of the list, it'll return <a>Left</a>. If it was int he
+--   the first part of the list, it'll return <a>Left</a>. If it was in the
 --   second part, it'll return <a>Right</a>.
+--   
+--   This is essentially <a>takeIndex</a> and <a>dropIndex</a> at the same
+--   time.
 splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)

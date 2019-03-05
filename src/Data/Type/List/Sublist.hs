@@ -9,11 +9,22 @@
 {-# LANGUAGE TypeInType          #-}
 {-# LANGUAGE TypeOperators       #-}
 
+-- |
+-- Module      : Data.Type.List.Sublist
+-- Copyright   : (c) Justin Le 2018
+-- License     : BSD3
+--
+-- Maintainer  : justin@jle.im
+-- Stability   : experimental
+-- Portability : non-portable
+--
+-- Witnesses regarding sublists of lists.
 module Data.Type.List.Sublist (
-  -- * Prefix
+  -- * Prefix and Suffix
+  -- ** Prefix
     Prefix(..)
   , takeProd, prefixLens, takeIndex
-  -- * Suffix
+  -- ** Suffix
   , Suffix(..)
   , dropProd, suffixLens, dropIndex
   -- * Append
@@ -28,7 +39,6 @@ module Data.Type.List.Sublist (
 
 import           Control.Applicative
 import           Data.Bifunctor
-import           Data.Either
 import           Data.Kind
 import           Data.Profunctor
 import           Data.Type.List.Prod

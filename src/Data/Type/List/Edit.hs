@@ -7,6 +7,16 @@
 {-# LANGUAGE TypeInType          #-}
 {-# LANGUAGE TypeOperators       #-}
 
+-- |
+-- Module      : Data.Type.List.Edit
+-- Copyright   : (c) Justin Le 2018
+-- License     : BSD3
+--
+-- Maintainer  : justin@jle.im
+-- Stability   : experimental
+-- Portability : non-portable
+--
+-- Witnesses regarding single-item edits of lists.
 module Data.Type.List.Edit (
   -- * Simple edits
     Insert(..)

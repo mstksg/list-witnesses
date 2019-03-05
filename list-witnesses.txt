@@ -7,6 +7,8 @@
 @package list-witnesses
 @version 0.1.0.0
 
+
+-- | Parameterized heterogeneous list.
 module Data.Type.List.Prod
 
 -- | This shows up in many places in the Haskell ecosystem: it's vinyl, or
@@ -19,6 +21,9 @@ module Data.Type.List.Prod
 --   </pre>
 --   
 --   contains an <tt>f a</tt>, and <tt>f b</tt>, and an <tt>f c</tt>.
+--   
+--   While this exists in my places, it's reproduced here to to provide a
+--   canonical implementation.
 data Prod :: (k -> Type) -> [k] -> Type
 [Ø] :: Prod f '[]
 [:<] :: f a -> Prod f as -> Prod f (a : as)
@@ -27,8 +32,11 @@ infixr 5 :<
 -- | Alias for <a>Ø</a>
 pNil :: Prod f '[]
 
--- | Retrieve an element in a <a>Prod</a> at a given index.
-indexProd :: Index as x -> Prod f as -> f x
+-- | (Total) head of a <a>Prod</a>.
+headProd :: Prod f (a : as) -> f a
+
+-- | (total) tail of a <a>Prod</a>.
+tailProd :: Prod f (a : as) -> Prod f as
 
 -- | A type-preserving lens into a value in a <a>Prod</a>, given a
 --   <a>Index</a> indicating which value. This lens cannot change the type
@@ -42,9 +50,32 @@ indexProd :: Index as x -> Prod f as -> f x
 --       -&gt; Lens' (<a>Prod</a> g as) (g x)
 --   </pre>
 lensProd' :: forall as x g f. Functor f => Index as x -> (g x -> f (g x)) -> Prod g as -> f (Prod g as)
-headProd :: Prod f (a : as) -> f a
-tailProd :: Prod f (a : as) -> Prod f as
 
+-- | Retrieve an element in a <a>Prod</a> at a given index.
+indexProd :: Index as x -> Prod f as -> f x
+
+-- | A RankN map over items in a <a>Prod</a>.
+mapProd :: forall f g as. () => (forall x. f x -> g x) -> Prod f as -> Prod g as
+
+-- | A RankN traversal over items in a <a>Prod</a>.
+traverseProd :: forall f g h as. Applicative h => (forall x. f x -> h (g x)) -> Prod f as -> h (Prod g as)
+
+-- | RankN fold over items in a <a>Prod</a>.
+foldMapProd :: forall f as m. Monoid m => (forall x. f x -> m) -> Prod f as -> m
+
+-- | Zip together two <a>Prod</a>.
+zipProd :: Prod f as -> Prod g as -> Prod (f :*: g) as
+
+-- | Convert a <a>Prod</a> of <a>Sing</a> elements into a <a>Sing</a> of
+--   the list of elements.
+prodSing :: Prod Sing as -> Sing as
+
+-- | Convert a <a>Sing</a> of a list of elements into a <a>Prod</a> of
+--   <a>Sing</a> elements.
+singProd :: Sing as -> Prod Sing as
+
+
+-- | Witnesses regarding single-item edits of lists.
 module Data.Type.List.Edit
 
 -- | An <tt><a>Insert</a> as bs x</tt> is a witness that you can insert
@@ -206,6 +237,8 @@ instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Edit.Ed
 instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Unshifted bs x y)
 instance Control.Category.Category Data.Type.List.Edit.Edit
 
+
+-- | Witnesses regarding sublists of lists.
 module Data.Type.List.Sublist
 
 -- | A <tt><a>Prefix</a> as bs</tt> witnesses that <tt>as</tt> is a prefix
@@ -229,6 +262,25 @@ data Prefix :: [k] -> [k] -> Type
 [PreZ] :: Prefix '[] as
 [PreS] :: Prefix as bs -> Prefix (a : as) (a : bs)
 
+-- | Take items from a <a>Prod</a> corresponding to a given <a>Prefix</a>.
+takeProd :: Prefix as bs -> Prod f bs -> Prod f as
+
+-- | A lens into the prefix of a <a>Prod</a>.
+--   
+--   Read this type signature as:
+--   
+--   <pre>
+--   <a>prefixLens</a>
+--       :: Prefix as bs
+--       -&gt; Lens' (Prod f bs) (Prod f as)
+--   </pre>
+prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+
+-- | Shave off the final inhabitants of an <a>Index</a>, keeping only
+--   indices a part of a given prefix. If the index is out of range,
+--   <a>Nothing</a> will be returned.
+takeIndex :: Prefix as bs -> Index bs x -> Maybe (Index as x)
+
 -- | A <tt><a>Suffix</a> as bs</tt> witnesses that <tt>as</tt> is a suffix
 --   of <tt>bs</tt>.
 --   
@@ -250,22 +302,8 @@ data Suffix :: [k] -> [k] -> Type
 [SufZ] :: Suffix as as
 [SufS] :: Suffix as bs -> Suffix as (b : bs)
 
--- | Take items from a <a>Prod</a> corresponding to a given <a>Prefix</a>.
-takeProd :: Prefix as bs -> Prod f bs -> Prod f as
-
 -- | Drop items from a <a>Prod</a> corresponding to a given <a>Suffix</a>.
 dropProd :: Suffix as bs -> Prod f bs -> Prod f as
-
--- | A lens into the prefix of a <a>Prod</a>.
---   
---   Read this type signature as:
---   
---   <pre>
---   <a>prefixLens</a>
---       :: Prefix as bs
---       -&gt; Lens' (Prod f bs) (Prod f as)
---   </pre>
-prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
 
 -- | A lens into the suffix of a <a>Prod</a>.
 --   
@@ -277,6 +315,11 @@ prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Pr
 --       -&gt; Lens' (Prod f bs) (Prod f as)
 --   </pre>
 suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+
+-- | Shave off the initial inhabitants of an <a>Index</a>, keeping only
+--   indices a part of a given suffix If the index is out of range,
+--   <a>Nothing</a> will be returned.
+dropIndex :: Suffix as bs -> Index bs x -> Maybe (Index as x)
 
 -- | An <tt><a>Append</a> as bs cs</tt> witnesses that <tt>cs</tt> is the
 --   result of appending <tt>as</tt> and <tt>bs</tt>.
@@ -296,6 +339,17 @@ suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Prod g as -> f (Pr
 data Append :: [k] -> [k] -> [k] -> Type
 [AppZ] :: Append '[] as as
 [AppS] :: Append as bs cs -> Append (a : as) bs (a : cs)
+
+-- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
+--   <tt>bs</tt>.
+prefixToAppend :: Prefix as cs -> (forall bs. Append as bs cs -> r) -> r
+
+-- | Convert a <a>Suffix</a> to an <a>Append</a>, with an existential
+--   <tt>as</tt>.
+suffixToAppend :: Suffix bs cs -> (forall as. Append as bs cs -> r) -> r
+
+-- | Split an <a>Append</a> into a <a>Prefix</a> and <a>Suffix</a>.
+splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
 
 -- | Split a <a>Prod</a> into a prefix and suffix. Basically
 --   <a>takeProd</a> and <a>dropProd</a> combined.
@@ -321,16 +375,10 @@ appendProd :: Append as bs cs -> Prod f as -> Prod f bs -> Prod f cs
 --   The <a>Append</a> tells the point to split the <a>Prod</a> at.
 splitProdIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs)) -> p (Prod g cs) (f (Prod g cs))
 
--- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
---   <tt>bs</tt>.
-prefixToAppend :: Prefix as cs -> (forall bs. Append as bs cs -> r) -> r
-
--- | Convert a <a>Suffix</a> to an <a>Append</a>, with an existential
---   <tt>as</tt>.
-suffixToAppend :: Suffix bs cs -> (forall as. Append as bs cs -> r) -> r
-
--- | Split an <a>Append</a> into a <a>Prefix</a> and <a>Suffix</a>.
-splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
+-- | Split an <a>Index</a> by an <a>Append</a>. If the <a>Index</a> was in
+--   the first part of the list, it'll return <a>Left</a>. If it was int he
+--   second part, it'll return <a>Right</a>.
+splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)

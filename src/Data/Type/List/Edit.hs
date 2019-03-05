@@ -35,9 +35,12 @@ module Data.Type.List.Edit (
   , insertProd, deleteProd, deleteGetProd
   , lensProd, substituteProd
   -- * Index
+  -- ** Manipulating indices
   , insertIndex
   , DeletedIx(..), deleteIndex, deleteIndex_
   , SubstitutedIx(..), substituteIndex, substituteIndex_
+  -- ** Converting from indices
+  , withDelete, withInsert, withInsertAfter
   ) where
 
 import           Data.Functor.Identity
@@ -311,3 +314,36 @@ substituteIndex_ sub i = case substituteIndex sub i of
     GotSubbed j -> Left  j
     NotSubbed j -> Right j
 
+-- | Given an 'Index' pointing to an element, create a 'Delete'
+-- corresponding to the given item.  The type of the resulting list is
+-- existentially quantified, is guaranteed to be just exactly the original
+-- list minus the specified element.
+withDelete
+    :: Index as x
+    -> (forall bs. Delete as bs x -> r)
+    -> r
+withDelete = \case
+    IZ   -> \f -> f DelZ
+    IS i -> \f -> withDelete i (f . DelS)
+
+-- | Given an 'Index' pointing to an element, create an 'Insert' placing an
+-- item /directly before/ the given element.  The type is existentailly
+-- quantified.
+withInsert
+    :: Index as x
+    -> (forall bs. Insert as bs y -> r)
+    -> r
+withInsert = \case
+    IZ   -> \f -> f InsZ
+    IS i -> \f -> withInsert i (f . InsS)
+
+-- | Given an 'Index' pointing to an element, create an 'Insert' placing an
+-- item /directly after/ the given element.  The type is existentailly
+-- quantified.
+withInsertAfter
+    :: Index as x
+    -> (forall bs. Insert as bs y -> r)
+    -> r
+withInsertAfter = \case
+    IZ   -> \f -> f (InsS InsZ)
+    IS i -> \f -> withInsertAfter i (f . InsS)

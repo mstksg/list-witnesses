@@ -42,6 +42,8 @@ indexProd :: Index as x -> Prod f as -> f x
 --       -&gt; Lens' (<a>Prod</a> g as) (g x)
 --   </pre>
 lensProd' :: forall as x g f. Functor f => Index as x -> (g x -> f (g x)) -> Prod g as -> f (Prod g as)
+headProd :: Prod f (a : as) -> f a
+tailProd :: Prod f (a : as) -> Prod f as
 
 module Data.Type.List.Edit
 
@@ -220,6 +222,9 @@ module Data.Type.List.Sublist
 --   
 --   Rule of thumb for construction: the number of <a>PreS</a> is the
 --   number of items in the prefix.
+--   
+--   This is essentially the first half of an <a>Append</a>, but is
+--   conceptually easier to work with.
 data Prefix :: [k] -> [k] -> Type
 [PreZ] :: Prefix '[] as
 [PreS] :: Prefix as bs -> Prefix (a : as) (a : bs)
@@ -238,6 +243,9 @@ data Prefix :: [k] -> [k] -> Type
 --   
 --   Rule of thumb for construction: the number of <a>SufS</a> is the
 --   number of items to "drop" before getting the suffix.
+--   
+--   This is essentially the second half of an <a>Append</a>, but is
+--   conceptually easier to work with.
 data Suffix :: [k] -> [k] -> Type
 [SufZ] :: Suffix as as
 [SufS] :: Suffix as bs -> Suffix as (b : bs)
@@ -247,5 +255,82 @@ takeProd :: Prefix as bs -> Prod f bs -> Prod f as
 
 -- | Drop items from a <a>Prod</a> corresponding to a given <a>Suffix</a>.
 dropProd :: Suffix as bs -> Prod f bs -> Prod f as
+
+-- | A lens into the prefix of a <a>Prod</a>.
+--   
+--   Read this type signature as:
+--   
+--   <pre>
+--   <a>prefixLens</a>
+--       :: Prefix as bs
+--       -&gt; Lens' (Prod f bs) (Prod f as)
+--   </pre>
+prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+
+-- | A lens into the suffix of a <a>Prod</a>.
+--   
+--   Read this type signature as:
+--   
+--   <pre>
+--   <a>suffixLens</a>
+--       :: Suffix as bs
+--       -&gt; Lens' (Prod f bs) (Prod f as)
+--   </pre>
+suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+
+-- | An <tt><a>Append</a> as bs cs</tt> witnesses that <tt>cs</tt> is the
+--   result of appending <tt>as</tt> and <tt>bs</tt>.
+--   
+--   Some examples:
+--   
+--   <pre>
+--   AppZ                     :: Append '[]  '[1,2]   '[1,2]
+--   AppZ                     :: Append '[]  '[1,2,3] '[1,2,3]
+--   AppS AppZ                :: Append '[0] '[1,2]   '[0,1,2]
+--   </pre>
+--   
+--   Rule of thumb for construction: the number of <a>AppS</a> is the
+--   number of items in the <i>first</i> list.
+--   
+--   This basically combines <a>Prefix</a> and <a>Suffix</a>.
+data Append :: [k] -> [k] -> [k] -> Type
+[AppZ] :: Append '[] as as
+[AppS] :: Append as bs cs -> Append (a : as) bs (a : cs)
+
+-- | Split a <a>Prod</a> into a prefix and suffix. Basically
+--   <a>takeProd</a> and <a>dropProd</a> combined.
+splitProd :: Append as bs cs -> Prod f cs -> (Prod f as, Prod f bs)
+
+-- | Append two <a>Prod</a>s together according to an <a>Append</a>.
+appendProd :: Append as bs cs -> Prod f as -> Prod f bs -> Prod f cs
+
+-- | Witness an isomorphism between <a>Prod</a> and two parts that compose
+--   it.
+--   
+--   Read this type signature as:
+--   
+--   <pre>
+--   <a>splitProdIso</a>
+--       :: Append as  bs  cs
+--       -&gt; Iso (Prod f cs)            (Prod f cs)
+--              (Prod f as, Prod f bs) (Prod f as, Prod f bs)
+--   </pre>
+--   
+--   This can be used with the combinators from the lens library.
+--   
+--   The <a>Append</a> tells the point to split the <a>Prod</a> at.
+splitProdIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs)) -> p (Prod g cs) (f (Prod g cs))
+
+-- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
+--   <tt>bs</tt>.
+prefixToAppend :: Prefix as cs -> (forall bs. Append as bs cs -> r) -> r
+
+-- | Convert a <a>Suffix</a> to an <a>Append</a>, with an existential
+--   <tt>as</tt>.
+suffixToAppend :: Suffix bs cs -> (forall as. Append as bs cs -> r) -> r
+
+-- | Split an <a>Append</a> into a <a>Prefix</a> and <a>Suffix</a>.
+splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
+instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)

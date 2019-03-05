@@ -87,7 +87,7 @@ module Data.Type.List.Edit
 
 -- | An <tt><a>Insert</a> as bs x</tt> is a witness that you can insert
 --   <tt>x</tt> into some position in list <tt>as</tt> to produce list
---   <tt>bs</tt>.
+--   <tt>bs</tt>. It is essentially <a>Delete</a> flipped.
 --   
 --   Some examples:
 --   
@@ -97,6 +97,8 @@ module Data.Type.List.Edit
 --   InsS (InsS InsZ)       :: Insert '[1,2,3] '[1,2,4,3] 4
 --   InsS (InsS (InsS InsZ) :: Insert '[1,2,3] '[1,2,3,4] 4
 --   </pre>
+--   
+--   <tt>bs</tt> will always be exactly one item longer than <tt>as</tt>.
 data Insert :: [k] -> [k] -> k -> Type
 [InsZ] :: Insert as (x : as) x
 [InsS] :: Insert as bs x -> Insert (a : as) (a : bs) x
@@ -112,6 +114,8 @@ data Insert :: [k] -> [k] -> k -> Type
 --   DelS DelZ        :: Delete '[1,2,3] '[2,3] 2
 --   DelS (DelS DelZ) :: Delete '[1,2,3] '[1,2] 3
 --   </pre>
+--   
+--   <tt>bs</tt> will always be exactly one item shorter than <tt>as</tt>.
 data Delete :: [k] -> [k] -> k -> Type
 [DelZ] :: Delete (x : as) as x
 [DelS] :: Delete as bs x -> Delete (a : as) (a : bs) x
@@ -138,6 +142,10 @@ data Substitute :: [k] -> [k] -> k -> k -> Type
 -- | Flip a substitution
 flipSub :: Substitute as bs x y -> Substitute bs as y x
 
+-- | Decompose a <a>Substitute</a> into a <a>Delete</a> followed by an
+--   <a>Insert</a>.
+subToDelIns :: Substitute as bs x y -> (forall cs. Delete as cs x -> Insert cs bs y -> r) -> r
+
 -- | An <tt><a>Edit</a> as bs</tt> is an edit script transforming
 --   <tt>as</tt> into <tt>bs</tt> through successive insertions, deletions,
 --   and substitutions.
@@ -146,6 +154,9 @@ data Edit :: [k] -> [k] -> Type
 [EIns] :: Insert bs cs x -> Edit as bs -> Edit as cs
 [EDel] :: Delete bs cs x -> Edit as bs -> Edit as cs
 [ESub] :: Substitute bs cs x y -> Edit as bs -> Edit as cs
+
+-- | Compose two <a>Edit</a>s
+compEdit :: Edit as bs -> Edit bs cs -> Edit as cs
 
 -- | Reverse an <a>Edit</a> script. O(n^2).
 flipEdit :: Edit as bs -> Edit bs as

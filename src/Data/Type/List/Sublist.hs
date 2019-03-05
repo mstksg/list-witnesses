@@ -10,23 +10,29 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Data.Type.List.Sublist (
+  -- * Prefix
     Prefix(..)
+  , takeProd, prefixLens, takeIndex
+  -- * Suffix
   , Suffix(..)
-  , takeProd
-  , dropProd
-  , prefixLens
-  , suffixLens
+  , dropProd, suffixLens, dropIndex
+  -- * Append
   , Append(..)
-  , splitProd, appendProd, splitProdIso
   , prefixToAppend, suffixToAppend
   , splitAppend
+  -- ** Product
+  , splitProd, appendProd, splitProdIso
+  -- ** Index
+  , splitIndex
   ) where
 
 import           Control.Applicative
 import           Data.Bifunctor
+import           Data.Either
 import           Data.Kind
 import           Data.Profunctor
 import           Data.Type.List.Prod
+import           Data.Type.Universe
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
 --
@@ -157,7 +163,7 @@ deriving instance Show (Append as bs cs)
 -- The 'Append' tells the point to split the 'Prod' at.
 splitProdIso
     :: (Profunctor p, Functor f)
-    => Append as  bs  cs
+    => Append as bs cs
     -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs))
     -> p (Prod g cs)            (f (Prod g cs))
 splitProdIso a = dimap (splitProd a) ((fmap . uncurry) (appendProd a))
@@ -209,3 +215,36 @@ splitAppend
 splitAppend = \case
     AppZ   -> (PreZ, SufZ)
     AppS a -> bimap PreS SufS . splitAppend $ a
+
+-- | Split an 'Index' by an 'Append'.  If the 'Index' was in the first part
+-- of the list, it'll return 'Left'.  If it was int he second part, it'll
+-- return 'Right'.
+splitIndex
+    :: Append as bs cs
+    -> Index cs x
+    -> Either (Index as x) (Index bs x)
+splitIndex = \case
+    AppZ   -> Right
+    AppS a -> \case
+      IZ   -> Left IZ
+      IS i -> first IS . splitIndex a $ i
+
+-- | Shave off the final inhabitants of an 'Index', keeping only indices
+-- a part of a given prefix.  If the index is out of range, 'Nothing' will
+-- be returned.
+takeIndex
+    :: Prefix as bs
+    -> Index bs x
+    -> Maybe (Index as x)
+takeIndex p i = prefixToAppend p $ either Just (const Nothing)
+                                 . (`splitIndex` i)
+
+-- | Shave off the initial inhabitants of an 'Index', keeping only indices
+-- a part of a given suffix  If the index is out of range, 'Nothing' will
+-- be returned.
+dropIndex
+    :: Suffix as bs
+    -> Index bs x
+    -> Maybe (Index as x)
+dropIndex s i = suffixToAppend s $ either (const Nothing) Just
+                                 . (`splitIndex` i)

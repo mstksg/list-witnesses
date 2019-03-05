@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeInType          #-}
@@ -25,8 +26,10 @@ module Data.Type.List.Edit (
   , delToIns
   , Substitute(..)
   , flipSub
+  , subToDelIns
   -- * Compound edits
   , Edit(..)
+  , compEdit
   , flipEdit
   -- * Product
   , insertProd, deleteProd, deleteGetProd
@@ -44,7 +47,8 @@ import           Data.Type.Universe
 import qualified Control.Category      as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
--- position in list @as@ to produce list @bs@.
+-- position in list @as@ to produce list @bs@.  It is essentially 'Delete'
+-- flipped.
 --
 -- Some examples:
 --
@@ -54,6 +58,8 @@ import qualified Control.Category      as C
 -- InsS (InsS InsZ)       :: Insert '[1,2,3] '[1,2,4,3] 4
 -- InsS (InsS (InsS InsZ) :: Insert '[1,2,3] '[1,2,3,4] 4
 -- @
+--
+-- @bs@ will always be exactly one item longer than @as@.
 data Insert :: [k] -> [k] -> k -> Type where
     InsZ :: Insert as (x ': as) x
     InsS :: Insert as bs x -> Insert (a ': as) (a ': bs) x
@@ -75,6 +81,8 @@ insToDel = \case
 -- DelS DelZ        :: Delete '[1,2,3] '[2,3] 2
 -- DelS (DelS DelZ) :: Delete '[1,2,3] '[1,2] 3
 -- @
+--
+-- @bs@ will always be exactly one item shorter than @as@.
 data Delete :: [k] -> [k] -> k -> Type where
     DelZ :: Delete (x ': as) as x
     DelS :: Delete as bs x -> Delete (a ': as) (a ': bs) x
@@ -109,6 +117,15 @@ flipSub :: Substitute as bs x y -> Substitute bs as y x
 flipSub = \case
     SubZ   -> SubZ
     SubS s -> SubS (flipSub s)
+
+-- | Decompose a 'Substitute' into a 'Delete' followed by an 'Insert'.
+subToDelIns
+    :: Substitute as bs x y
+    -> (forall cs. Delete as cs x -> Insert cs bs y -> r)
+    -> r
+subToDelIns = \case
+    SubZ   -> \f -> f DelZ InsZ
+    SubS s -> \f -> subToDelIns s $ \d i -> f (DelS d) (InsS i)
 
 -- | An @'Edit' as bs@ is an edit script transforming @as@ into @bs@
 -- through successive insertions, deletions, and substitutions.

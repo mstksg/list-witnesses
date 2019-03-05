@@ -23,10 +23,10 @@ module Data.Type.List.Sublist (
   -- * Prefix and Suffix
   -- ** Prefix
     Prefix(..)
-  , takeProd, prefixLens, takeIndex
+  , takeProd, prefixLens, takeIndex, weakenIndex
   -- ** Suffix
   , Suffix(..)
-  , dropProd, suffixLens, dropIndex
+  , dropProd, suffixLens, dropIndex, shiftIndex
   -- * Append
   , Append(..)
   , prefixToAppend, suffixToAppend
@@ -95,10 +95,10 @@ takeProd p = getConst . prefixLens p Const
 -- Some examples:
 --
 -- @
--- SufZ                      :: Suffix '[1,2,3] '[1,2,3]
--- SufS SufZ                 :: Suffix   '[2,3] '[1,2,3]
--- SufS (SufS SufZ)          :: Suffix     '[3] '[1,2,3]
--- SufS (SufS (SufS (SufZ))) :: Suffix      '[] '[1,2,3]
+-- SufZ                    :: Suffix '[1,2,3] '[1,2,3]
+-- SufS SufZ               :: Suffix   '[2,3] '[1,2,3]
+-- SufS (SufS SufZ)        :: Suffix     '[3] '[1,2,3]
+-- SufS (SufS (SufS SufZ)) :: Suffix      '[] '[1,2,3]
 -- @
 --
 -- Rule of thumb for construction: the number of 'SufS' is the number of
@@ -240,8 +240,10 @@ appendToSuffix = \case
     AppS a -> SufS . appendToSuffix $ a
 
 -- | Split an 'Index' by an 'Append'.  If the 'Index' was in the first part
--- of the list, it'll return 'Left'.  If it was int he second part, it'll
+-- of the list, it'll return 'Left'.  If it was in the second part, it'll
 -- return 'Right'.
+--
+-- This is essentially 'takeIndex' and 'dropIndex' at the same time.
 splitIndex
     :: Append as bs cs
     -> Index cs x
@@ -255,6 +257,8 @@ splitIndex = \case
 -- | Shave off the final inhabitants of an 'Index', keeping only indices
 -- a part of a given prefix.  If the index is out of range, 'Nothing' will
 -- be returned.
+--
+-- This is essentially 'splitIndex', but taking only 'Left' results.
 takeIndex
     :: Prefix as bs
     -> Index bs x
@@ -265,9 +269,36 @@ takeIndex p i = prefixToAppend p $ either Just (const Nothing)
 -- | Shave off the initial inhabitants of an 'Index', keeping only indices
 -- a part of a given suffix  If the index is out of range, 'Nothing' will
 -- be returned.
+--
+-- This is essentially 'splitIndex', but taking only 'Right' results.
 dropIndex
     :: Suffix as bs
     -> Index bs x
     -> Maybe (Index as x)
 dropIndex s i = suffixToAppend s $ either (const Nothing) Just
                                  . (`splitIndex` i)
+
+-- | An index pointing to a given item in a prefix is also an index
+-- pointing to the same item in the full list.  This "weakens" the bounds
+-- of an index, widening the list at the end but preserving the original
+-- index.  This is the inverse of 'takeIndex'.
+weakenIndex
+    :: Prefix as bs
+    -> Index as x
+    -> Index bs x
+weakenIndex = \case
+    PreZ   -> \case {}
+    PreS p -> \case
+      IZ   -> IZ
+      IS i -> IS (weakenIndex p i)
+
+-- | An index pointing to a given item in a suffix can be transformed into
+-- an index pointing to the same item in the full list.  This is the
+-- inverse of 'dropIndex'.
+shiftIndex
+    :: Suffix as bs
+    -> Index as x
+    -> Index bs x
+shiftIndex = \case
+    SufZ   -> id
+    SufS s -> IS . shiftIndex s

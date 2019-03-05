@@ -35,9 +35,9 @@ module Data.Type.List.Edit (
   , insertProd, deleteProd, deleteGetProd
   , lensProd, substituteProd
   -- * Index
-  , shiftIndex
-  , Unshifted(..), unshiftIndex, unshiftIndex_
-  , Reshifted(..), reshiftIndex, reshiftIndex_
+  , insertIndex
+  , DeletedIx(..), deleteIndex, deleteIndex_
+  , SubstitutedIx(..), substituteIndex, substituteIndex_
   ) where
 
 import           Data.Functor.Identity
@@ -66,6 +66,7 @@ data Insert :: [k] -> [k] -> k -> Type where
 
 deriving instance Show (Insert as bs x)
 
+-- | Flip an insertion.
 insToDel :: Insert as bs x -> Delete bs as x
 insToDel = \case
     InsZ   -> DelZ
@@ -89,7 +90,7 @@ data Delete :: [k] -> [k] -> k -> Type where
 
 deriving instance Show (Delete as bs x)
 
--- | Flip a deletion
+-- | Flip a deletion.
 delToIns :: Delete as bs x -> Insert bs as x
 delToIns = \case
     DelZ   -> InsZ
@@ -150,7 +151,9 @@ instance C.Category Edit where
     id = ENil
     xs . ys = compEdit ys xs
 
--- | Reverse an 'Edit' script.  O(n^2).
+-- | Reverse an 'Edit' script.  O(n^2).  Please do not use.
+--
+-- TODO: Make O(n) using diff lists.
 flipEdit :: Edit as bs -> Edit bs as
 flipEdit = \case
     ENil      -> ENil
@@ -223,21 +226,21 @@ substituteProd s f = runIdentity . lensProd s (Identity . f)
 -- @'Index' as y@ to @Index bs y@.  This shifts the 'Index' in @as@ to
 -- become an 'Index' in @bs@, but makes sure that the index points to the
 -- same original value.
-shiftIndex :: Insert as bs x -> Index as y -> Index bs y
-shiftIndex = \case
+insertIndex :: Insert as bs x -> Index as y -> Index bs y
+insertIndex = \case
     InsZ   -> IS
     InsS ins -> \case
       IZ   -> IZ
-      IS i -> IS (shiftIndex ins i)
+      IS i -> IS (insertIndex ins i)
 
--- | Used as the return type of 'unshiftIndex'.  An @'Unshifted' bs x y@ is
+-- | Used as the return type of 'deleteIndex'.  An @'DeletedIx' bs x y@ is
 -- like a @'Maybe' ('Index' bs y)@, except the 'Nothing' case witnesses
 -- that @x ~ y@.
-data Unshifted :: [k] -> k -> k -> Type where
-    GotDeleted :: Unshifted bs x x
-    NotDeleted :: Index bs y -> Unshifted bs x y
+data DeletedIx :: [k] -> k -> k -> Type where
+    GotDeleted :: DeletedIx bs x x
+    NotDeleted :: Index bs y -> DeletedIx bs x y
 
-deriving instance Show (Unshifted bs x y)
+deriving instance Show (DeletedIx bs x y)
 
 -- | If you delete an item in @as@ to create @bs@, you also need to move
 -- @'Index' as y@ into @Index bs y@.  This transforms the 'Index' in @as@
@@ -248,31 +251,31 @@ deriving instance Show (Unshifted bs x y)
 -- the index was originally pointing to.  If this is the case, this
 -- function returns 'GotDeleted', a witness that @x ~ y@.  Otherwise, it
 -- returns 'NotDeleted' with the unshifted index.
-unshiftIndex :: Delete as bs x -> Index as y -> Unshifted bs x y
-unshiftIndex = \case
+deleteIndex :: Delete as bs x -> Index as y -> DeletedIx bs x y
+deleteIndex = \case
     DelZ -> \case
       IZ   -> GotDeleted
       IS i -> NotDeleted i
     DelS del -> \case
       IZ   -> NotDeleted IZ
-      IS i -> case unshiftIndex del i of
+      IS i -> case deleteIndex del i of
         GotDeleted   -> GotDeleted
         NotDeleted j -> NotDeleted (IS j)
 
--- | A version of 'unshiftIndex' returning a simple 'Maybe'.  This can be
+-- | A version of 'deleteIndex' returning a simple 'Maybe'.  This can be
 -- used if you don't care about witnessing that @x ~ y@ in the case that
 -- the index is the item that is deleted.
-unshiftIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
-unshiftIndex_ del i = case unshiftIndex del i of
+deleteIndex_ :: Delete as bs x -> Index as y -> Maybe (Index bs y)
+deleteIndex_ del i = case deleteIndex del i of
     GotDeleted   -> Nothing
     NotDeleted j -> Just j
 
--- | Used as the return type of 'reshiftIndex'.  An @'Reshifted' bs x y z@ is
+-- | Used as the return type of 'substituteIndex'.  An @'SubstitutedIx' bs x y z@ is
 -- like an @'Either' ('Index' bs y) ('Index' bs z)@, except the 'Left' case
 -- witnesses that @x ~ z@.
-data Reshifted :: [k] -> k -> k -> k -> Type where
-    GotSubbed :: Index bs y -> Reshifted bs z y z
-    NotSubbed :: Index bs z -> Reshifted bs x y z
+data SubstitutedIx :: [k] -> k -> k -> k -> Type where
+    GotSubbed :: Index bs y -> SubstitutedIx bs z y z
+    NotSubbed :: Index bs z -> SubstitutedIx bs x y z
 
 -- | If you substitute an item in @as@ to create @bs@, you also need to
 -- reshift @'Index' as z@ into @'Index' bs z@.  This reshifts the 'Index'
@@ -283,28 +286,28 @@ data Reshifted :: [k] -> k -> k -> k -> Type where
 -- that the index was originally pointing to.  If this is the case, this
 -- function returns 'GotSubbed', a witness that @x ~ z@.  Otherwise, it
 -- returns 'NotSubbed'.  Both contain the updated index.
-reshiftIndex
+substituteIndex
     :: Substitute as bs x y
     -> Index as z
-    -> Reshifted bs x y z
-reshiftIndex = \case
+    -> SubstitutedIx bs x y z
+substituteIndex = \case
     SubZ -> \case
       IZ   -> GotSubbed IZ
       IS i -> NotSubbed (IS i)
     SubS s -> \case
       IZ   -> NotSubbed IZ
-      IS i -> case reshiftIndex s i of
+      IS i -> case substituteIndex s i of
         GotSubbed j -> GotSubbed (IS j)
         NotSubbed j -> NotSubbed (IS j)
 
--- | A version of 'reshiftIndex' returning a simple 'Either'.  This can be
+-- | A version of 'substituteIndex' returning a simple 'Either'.  This can be
 -- the case if you don't care about witnessing @x ~ z@ in the case that the
 -- index is the item that was substituted.
-reshiftIndex_
+substituteIndex_
     :: Substitute as bs x y
     -> Index as z
     -> Either (Index bs y) (Index bs z)
-reshiftIndex_ sub i = case reshiftIndex sub i of
+substituteIndex_ sub i = case substituteIndex sub i of
     GotSubbed j -> Left  j
     NotSubbed j -> Right j
-    
+

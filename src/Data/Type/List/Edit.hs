@@ -27,6 +27,10 @@ module Data.Type.List.Edit (
   , Substitute(..)
   , flipSub
   , subToDelIns
+  -- ** Singletons
+  , SInsert(..)
+  , SDelete(..)
+  , SSubstitute(..)
   -- * Compound edits
   , Edit(..)
   , compEdit
@@ -41,6 +45,7 @@ module Data.Type.List.Edit (
   , SubstitutedIx(..), substituteIndex, substituteIndex_
   -- ** Converting from indices
   , withDelete, withInsert, withInsertAfter
+  -- ** Type-Level
   ) where
 
 import           Data.Functor.Identity
@@ -69,6 +74,13 @@ data Insert :: [k] -> [k] -> k -> Type where
 
 deriving instance Show (Insert as bs x)
 
+-- | Kind-indexed singleton for 'Insert'.
+data SInsert as bs x :: Insert as bs x -> Type where
+    SInsZ :: SInsert as (x ': as) x 'InsZ
+    SInsS :: SInsert as bs x ins -> SInsert (a ': as) (a ': bs) x ('InsS ins)
+
+deriving instance Show (SInsert as bs x del)
+
 -- | Flip an insertion.
 insToDel :: Insert as bs x -> Delete bs as x
 insToDel = \case
@@ -93,6 +105,13 @@ data Delete :: [k] -> [k] -> k -> Type where
 
 deriving instance Show (Delete as bs x)
 
+-- | Kind-indexed singleton for 'Delete'.
+data SDelete as bs x :: Delete as bs x -> Type where
+    SDelZ :: SDelete (x ': as) as x 'DelZ
+    SDelS :: SDelete as bs x del -> SDelete (a ': as) (a ': bs) x ('DelS del)
+
+deriving instance Show (SDelete as bs x del)
+
 -- | Flip a deletion.
 delToIns :: Delete as bs x -> Insert bs as x
 delToIns = \case
@@ -116,6 +135,12 @@ data Substitute :: [k] -> [k] -> k -> k -> Type where
 
 deriving instance Show (Substitute as bs x y)
 
+-- | Kind-indexed singleton for 'Substitute'.
+data SSubstitute as bs x y :: Substitute as bs x y -> Type where
+    SSubZ :: SSubstitute (x ': as) (y ': as) x y 'SubZ
+    SSubS :: SSubstitute as bs x y sub
+          -> SSubstitute (c ': as) (c ': bs) x y ('SubS sub)
+
 -- | Flip a substitution
 flipSub :: Substitute as bs x y -> Substitute bs as y x
 flipSub = \case
@@ -133,6 +158,8 @@ subToDelIns = \case
 
 -- | An @'Edit' as bs@ is a reversible edit script transforming @as@ into
 -- @bs@ through successive insertions, deletions, and substitutions.
+--
+-- TODO: implement Wagner-Fischer to minimize find a minimal edit distance
 data Edit :: [k] -> [k] -> Type where
     ENil :: Edit as as
     EIns :: Insert bs cs x -> Edit as bs -> Edit as cs
@@ -196,10 +223,21 @@ deleteRec = \case
 -- @
 -- 'recLens'
 --     :: 'Substitute' as bs x y
---     -> Lens ('Rec' g as) (Rec g bs) (g x) (g y)
+--     -> Lens ('Rec' f as) (Rec f bs) (f x) (f y)
 -- @
 --
--- This is simular to 'rlensC' from /vinyl/, but is built explicitly and
+-- For example:
+--
+-- @
+-- recLens (SubS SubZ)
+--      :: Lens (Rec f '[a,b,c,d]) (Rec f '[a,e,c,d])
+--              (f b)              (f e)
+-- @
+--
+-- The number of 'SubS' in the index essentially indicates the index to
+-- edit at.
+--
+-- This is similar to 'rlensC' from /vinyl/, but is built explicitly and
 -- inductively, instead of using typeclass magic.
 recLens
     :: forall as bs x y g f. Functor f

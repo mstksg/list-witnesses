@@ -83,9 +83,27 @@ flipSub :: Substitute as bs x y -> Substitute bs as y x
 --   <a>Insert</a>.
 subToDelIns :: Substitute as bs x y -> (forall cs. Delete as cs x -> Insert cs bs y -> r) -> r
 
+-- | Kind-indexed singleton for <a>Insert</a>.
+data SInsert as bs x :: Insert as bs x -> Type
+[SInsZ] :: SInsert as (x : as) x  'InsZ
+[SInsS] :: SInsert as bs x ins -> SInsert (a : as) (a : bs) x ( 'InsS ins)
+
+-- | Kind-indexed singleton for <a>Delete</a>.
+data SDelete as bs x :: Delete as bs x -> Type
+[SDelZ] :: SDelete (x : as) as x  'DelZ
+[SDelS] :: SDelete as bs x del -> SDelete (a : as) (a : bs) x ( 'DelS del)
+
+-- | Kind-indexed singleton for <a>Substitute</a>.
+data SSubstitute as bs x y :: Substitute as bs x y -> Type
+[SSubZ] :: SSubstitute (x : as) (y : as) x y  'SubZ
+[SSubS] :: SSubstitute as bs x y sub -> SSubstitute (c : as) (c : bs) x y ( 'SubS sub)
+
 -- | An <tt><a>Edit</a> as bs</tt> is a reversible edit script transforming
 --   <tt>as</tt> into <tt>bs</tt> through successive insertions, deletions,
 --   and substitutions.
+--   
+--   TODO: implement Wagner-Fischer to minimize find a minimal edit
+--   distance
 data Edit :: [k] -> [k] -> Type
 [ENil] :: Edit as as
 [EIns] :: Insert bs cs x -> Edit as bs -> Edit as cs
@@ -120,10 +138,21 @@ deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
 --   <pre>
 --   <a>recLens</a>
 --       :: <a>Substitute</a> as bs x y
---       -&gt; Lens (<a>Rec</a> g as) (Rec g bs) (g x) (g y)
+--       -&gt; Lens (<a>Rec</a> f as) (Rec f bs) (f x) (f y)
 --   </pre>
 --   
---   This is simular to <tt>rlensC</tt> from <i>vinyl</i>, but is built
+--   For example:
+--   
+--   <pre>
+--   recLens (SubS SubZ)
+--        :: Lens (Rec f '[a,b,c,d]) (Rec f '[a,e,c,d])
+--                (f b)              (f e)
+--   </pre>
+--   
+--   The number of <a>SubS</a> in the index essentially indicates the index
+--   to edit at.
+--   
+--   This is similar to <tt>rlensC</tt> from <i>vinyl</i>, but is built
 --   explicitly and inductively, instead of using typeclass magic.
 recLens :: forall as bs x y g f. Functor f => Substitute as bs x y -> (g x -> f (g y)) -> Rec g as -> f (Rec g bs)
 
@@ -205,7 +234,9 @@ withInsert :: Index as x -> (forall bs. Insert as bs y -> r) -> r
 --   existentailly quantified.
 withInsertAfter :: Index as x -> (forall bs. Insert as bs y -> r) -> r
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Insert as bs x)
+instance forall a (as :: [a]) (bs :: [a]) (x :: a) (del :: Data.Type.List.Edit.Insert as bs x). GHC.Show.Show (Data.Type.List.Edit.SInsert as bs x del)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Delete as bs x)
+instance forall a (as :: [a]) (bs :: [a]) (x :: a) (del :: Data.Type.List.Edit.Delete as bs x). GHC.Show.Show (Data.Type.List.Edit.SDelete as bs x del)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.Substitute as bs x y)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Edit.Edit as bs)
 instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.DeletedIx bs x y)

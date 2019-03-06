@@ -31,9 +31,9 @@ module Data.Type.List.Edit (
   , Edit(..)
   , compEdit
   , flipEdit
-  -- * Product
-  , insertProd, deleteProd, deleteGetProd
-  , lensProd, substituteProd
+  -- * Rec
+  , insertRec, deleteRec, deleteGetRec
+  , recLens, substituteRec
   -- * Index
   -- ** Manipulating indices
   , insertIndex
@@ -45,8 +45,8 @@ module Data.Type.List.Edit (
 
 import           Data.Functor.Identity
 import           Data.Kind
-import           Data.Type.List.Prod
 import           Data.Type.Universe
+import           Data.Vinyl.Core
 import qualified Control.Category      as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
@@ -131,8 +131,8 @@ subToDelIns = \case
     SubZ   -> \f -> f DelZ InsZ
     SubS s -> \f -> subToDelIns s $ \d i -> f (DelS d) (InsS i)
 
--- | An @'Edit' as bs@ is an edit script transforming @as@ into @bs@
--- through successive insertions, deletions, and substitutions.
+-- | An @'Edit' as bs@ is a reversible edit script transforming @as@ into
+-- @bs@ through successive insertions, deletions, and substitutions.
 data Edit :: [k] -> [k] -> Type where
     ENil :: Edit as as
     EIns :: Insert bs cs x -> Edit as bs -> Edit as cs
@@ -164,66 +164,68 @@ flipEdit = \case
     EDel d ys -> EIns (delToIns d) ENil `compEdit` flipEdit ys
     ESub s ys -> ESub (flipSub  s) ENil `compEdit` flipEdit ys
 
--- | Insert a value into a 'Prod', at a position indicated by the 'Insert'.
-insertProd :: Insert as bs x -> f x -> Prod f as -> Prod f bs
-insertProd = \case
-    InsZ   -> (:<)
+-- | Insert a value into a 'Rec', at a position indicated by the 'Insert'.
+insertRec :: Insert as bs x -> f x -> Rec f as -> Rec f bs
+insertRec = \case
+    InsZ   -> (:&)
     InsS i -> \x -> \case
-      y :< ys -> y :< insertProd i x ys
+      y :& ys -> y :& insertRec i x ys
 
--- | Retrieve and delete a value in a 'Prod', at a position indicated by the 'Delete'.
-deleteGetProd :: Delete as bs x -> Prod f as -> (f x, Prod f bs)
-deleteGetProd = \case
+-- | Retrieve and delete a value in a 'Rec', at a position indicated by the 'Delete'.
+deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
+deleteGetRec = \case
     DelZ -> \case
-      x :< xs -> (x, xs)
+      x :& xs -> (x, xs)
     DelS d -> \case
-      x :< xs -> let (y, ys) = deleteGetProd d xs
-                 in  (y, x :< ys)
+      x :& xs -> let (y, ys) = deleteGetRec d xs
+                 in  (y, x :& ys)
 
--- | Delete a value in a 'Prod', at a position indicated by the 'Delete'.
-deleteProd :: Delete as bs x -> Prod f as -> Prod f bs
-deleteProd = \case
+-- | Delete a value in a 'Rec', at a position indicated by the 'Delete'.
+deleteRec :: Delete as bs x -> Rec f as -> Rec f bs
+deleteRec = \case
     DelZ -> \case
-      _ :< xs -> xs
+      _ :& xs -> xs
     DelS d -> \case
-      x :< xs -> x :< deleteProd d xs
+      x :& xs -> x :& deleteRec d xs
 
--- | A type-changing lens into a value in a 'Prod', given a 'Substitute'
--- indicating which value.  This lens can change the type of the value,
--- unlike 'lensProd''.
+-- | A type-changing lens into a value in a 'Rec', given a 'Substitute'
+-- indicating which value.
 --
 -- Read this type signature as:
 --
 -- @
--- 'lensProd'
+-- 'recLens'
 --     :: 'Substitute' as bs x y
---     -> Lens ('Prod' g as) (Prod g bs) (g x) (g y)
+--     -> Lens ('Rec' g as) (Rec g bs) (g x) (g y)
 -- @
-lensProd
+--
+-- This is simular to 'rlensC' from /vinyl/, but is built explicitly and
+-- inductively, instead of using typeclass magic.
+recLens
     :: forall as bs x y g f. Functor f
     => Substitute as bs x y
     -> (g x -> f (g y))
-    -> Prod g as
-    -> f (Prod g bs)
-lensProd s0 f = go s0
+    -> Rec g as
+    -> f (Rec g bs)
+recLens s0 f = go s0
   where
     go  :: Substitute cs ds x y
-        -> Prod g cs
-        -> f (Prod g ds)
+        -> Rec g cs
+        -> f (Rec g ds)
     go = \case
       SubZ -> \case
-        x :< xs -> (:< xs) <$> f x
+        x :& xs -> (:& xs) <$> f x
       SubS s -> \case
-        x :< xs -> (x :<) <$> go s xs
+        x :& xs -> (x :&) <$> go s xs
 
--- | Substitute a value in a 'Prod' at a given position, indicated by the
--- 'Substitute'.  This is essentially a specialized version of 'lensProd'.
-substituteProd
+-- | Substitute a value in a 'Rec' at a given position, indicated by the
+-- 'Substitute'.  This is essentially a specialized version of 'recLens'.
+substituteRec
     :: Substitute as bs x y
     -> (f x -> f y)
-    -> Prod f as
-    -> Prod f bs
-substituteProd s f = runIdentity . lensProd s (Identity . f)
+    -> Rec f as
+    -> Rec f bs
+substituteRec s f = runIdentity . recLens s (Identity . f)
 
 -- | If you add an item to @as@ to create @bs@, you also need to shift an
 -- @'Index' as y@ to @Index bs y@.  This shifts the 'Index' in @as@ to

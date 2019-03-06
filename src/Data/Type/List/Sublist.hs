@@ -23,16 +23,16 @@ module Data.Type.List.Sublist (
   -- * Prefix and Suffix
   -- ** Prefix
     Prefix(..)
-  , takeProd, prefixLens, takeIndex, weakenIndex
+  , takeRec, prefixLens, takeIndex, weakenIndex
   -- ** Suffix
   , Suffix(..)
-  , dropProd, suffixLens, dropIndex, shiftIndex
+  , dropRec, suffixLens, dropIndex, shiftIndex
   -- * Append
   , Append(..)
   , prefixToAppend, suffixToAppend
   , appendToPrefix, appendToSuffix, splitAppend
-  -- ** Product
-  , splitProd, appendProd, splitProdIso
+  -- ** Recuct
+  , splitRec, appendRec, splitRecIso
   -- ** Index
   , splitIndex
   ) where
@@ -41,8 +41,8 @@ import           Control.Applicative
 import           Data.Bifunctor
 import           Data.Kind
 import           Data.Profunctor
-import           Data.Type.List.Prod
 import           Data.Type.Universe
+import           Data.Vinyl.Core
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
 --
@@ -66,29 +66,29 @@ data Prefix :: [k] -> [k] -> Type where
 
 deriving instance Show (Prefix as bs)
 
--- | A lens into the prefix of a 'Prod'.
+-- | A lens into the prefix of a 'Rec'.
 --
 -- Read this type signature as:
 --
 -- @
 -- 'prefixLens'
 --     :: Prefix as bs
---     -> Lens' (Prod f bs) (Prod f as)
+--     -> Lens' (Rec f bs) (Rec f as)
 -- @
 prefixLens
     :: forall as bs g f. Functor f
     => Prefix as bs
-    -> (Prod g as -> f (Prod g as))
-    -> Prod g bs
-    -> f (Prod g bs)
-prefixLens p = prefixToAppend p $ \a -> splitProdIso a . _1
+    -> (Rec g as -> f (Rec g as))
+    -> Rec g bs
+    -> f (Rec g bs)
+prefixLens p = prefixToAppend p $ \a -> splitRecIso a . _1
   where
     _1 :: (a -> f b) -> (a, c) -> f (b, c)
     _1 f (x, y) = (, y) <$> f x
 
--- | Take items from a 'Prod' corresponding to a given 'Prefix'.
-takeProd :: Prefix as bs -> Prod f bs -> Prod f as
-takeProd p = getConst . prefixLens p Const
+-- | Take items from a 'Rec' corresponding to a given 'Prefix'.
+takeRec :: Prefix as bs -> Rec f bs -> Rec f as
+takeRec p = getConst . prefixLens p Const
 
 -- | A @'Suffix' as bs@ witnesses that @as@ is a suffix of @bs@.
 --
@@ -112,29 +112,29 @@ data Suffix :: [k] -> [k] -> Type where
 
 deriving instance Show (Suffix as bs)
 
--- | A lens into the suffix of a 'Prod'.
+-- | A lens into the suffix of a 'Rec'.
 --
 -- Read this type signature as:
 --
 -- @
 -- 'suffixLens'
 --     :: Suffix as bs
---     -> Lens' (Prod f bs) (Prod f as)
+--     -> Lens' (Rec f bs) (Rec f as)
 -- @
 suffixLens
     :: forall as bs g f. Functor f
     => Suffix as bs
-    -> (Prod g as -> f (Prod g as))
-    -> Prod g bs
-    -> f (Prod g bs)
-suffixLens p = suffixToAppend p $ \a -> splitProdIso a . _2
+    -> (Rec g as -> f (Rec g as))
+    -> Rec g bs
+    -> f (Rec g bs)
+suffixLens p = suffixToAppend p $ \a -> splitRecIso a . _2
   where
     _2 :: (a -> f b) -> (c, a) -> f (c, b)
     _2 f (x, y) = (x ,) <$> f y
 
--- | Drop items from a 'Prod' corresponding to a given 'Suffix'.
-dropProd :: Suffix as bs -> Prod f bs -> Prod f as
-dropProd p = getConst . suffixLens p Const
+-- | Drop items from a 'Rec' corresponding to a given 'Suffix'.
+dropRec :: Suffix as bs -> Rec f bs -> Rec f as
+dropRec p = getConst . suffixLens p Const
 
 -- | An @'Append' as bs cs@ witnesses that @cs@ is the result of appending
 -- @as@ and @bs@.
@@ -157,48 +157,48 @@ data Append :: [k] -> [k] -> [k] -> Type where
 
 deriving instance Show (Append as bs cs)
 
--- | Witness an isomorphism between 'Prod' and two parts that compose it.
+-- | Witness an isomorphism between 'Rec' and two parts that compose it.
 --
 -- Read this type signature as:
 --
 -- @
--- 'splitProdIso'
+-- 'splitRecIso'
 --     :: Append as  bs  cs
---     -> Iso (Prod f cs)            (Prod f cs)
---            (Prod f as, Prod f bs) (Prod f as, Prod f bs)
+--     -> Iso (Rec f cs)           (Rec f cs)
+--            (Rec f as, Rec f bs) (Rec f as, Rec f bs)
 -- @
 --
 -- This can be used with the combinators from the lens library.
 --
--- The 'Append' tells the point to split the 'Prod' at.
-splitProdIso
+-- The 'Append' tells the point to split the 'Rec' at.
+splitRecIso
     :: (Profunctor p, Functor f)
     => Append as bs cs
-    -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs))
-    -> p (Prod g cs)            (f (Prod g cs))
-splitProdIso a = dimap (splitProd a) ((fmap . uncurry) (appendProd a))
+    -> p (Rec g as, Rec g bs) (f (Rec g as, Rec g bs))
+    -> p (Rec g cs)            (f (Rec g cs))
+splitRecIso a = dimap (splitRec a) ((fmap . uncurry) (appendRec a))
 
--- | Split a 'Prod' into a prefix and suffix.  Basically 'takeProd'
--- and 'dropProd' combined.
-splitProd
+-- | Split a 'Rec' into a prefix and suffix.  Basically 'takeRec'
+-- and 'dropRec' combined.
+splitRec
     :: Append as bs cs
-    -> Prod f cs
-    -> (Prod f as, Prod f bs)
-splitProd = \case
-    AppZ   -> (Ø,)
+    -> Rec f cs
+    -> (Rec f as, Rec f bs)
+splitRec = \case
+    AppZ   -> (RNil,)
     AppS a -> \case
-      x :< xs -> first (x :<) . splitProd a $ xs
+      x :& xs -> first (x :&) . splitRec a $ xs
 
--- | Append two 'Prod's together according to an 'Append'.
-appendProd
+-- | Append two 'Rec's together according to an 'Append'.
+appendRec
     :: Append as bs cs
-    -> Prod f as
-    -> Prod f bs
-    -> Prod f cs
-appendProd = \case
+    -> Rec f as
+    -> Rec f bs
+    -> Rec f cs
+appendRec = \case
     AppZ   -> \_ -> id
     AppS a -> \case
-      x :< xs -> (x :<) . appendProd a xs
+      x :& xs -> (x :&) . appendRec a xs
 
 -- | Convert a 'Prefix' to an 'Append', with an existential @bs@.
 prefixToAppend

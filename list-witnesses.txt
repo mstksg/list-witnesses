@@ -2,84 +2,19 @@
 -- See Hoogle, http://www.haskell.org/hoogle/
 
 
--- | Please see the README on GitHub at
---   <a>https://github.com/mstksg/list-witnesses#readme</a>
+-- | Witnesses for working with type-level lists
+--   
+--   Collection of assorted inductive witnesses and functions for working
+--   with type-level lists.
+--   
+--   <ul>
+--   <li>*Data.Type.List.Edit* contains single-item edits of lists,
+--   including insertion, deletion, and substitution.</li>
+--   <li>*Data.Type.List.Sublist* contains witnesses for prefixes,
+--   suffixes, and two-way splits of type-level lists.</li>
+--   </ul>
 @package list-witnesses
 @version 0.1.0.0
-
-
--- | Parameterized heterogeneous list.
-module Data.Type.List.Prod
-
--- | This shows up in many places in the Haskell ecosystem: it's vinyl, or
---   a heterogeneous list parameterized by a functor.
---   
---   A value of type
---   
---   <pre>
---   <a>Prod</a> f '[a,b,c]
---   </pre>
---   
---   contains an <tt>f a</tt>, and <tt>f b</tt>, and an <tt>f c</tt>.
---   
---   While this exists in my places, it's reproduced here to to provide a
---   canonical implementation.
-data Prod :: (k -> Type) -> [k] -> Type
-[Ø] :: Prod f '[]
-[:<] :: f a -> Prod f as -> Prod f (a : as)
-infixr 5 :<
-
--- | Alias for <a>Ø</a>
-pNil :: Prod f '[]
-
--- | (Total) head of a <a>Prod</a>.
-headProd :: Prod f (a : as) -> f a
-
--- | (total) tail of a <a>Prod</a>.
-tailProd :: Prod f (a : as) -> Prod f as
-
--- | A type-preserving lens into a value in a <a>Prod</a>, given a
---   <a>Index</a> indicating which value. This lens cannot change the type
---   of the value, unlike "Data.Type.List.Edit.lensProd'.
---   
---   Read this type signature as:
---   
---   <pre>
---   <tt>lensProd</tt>
---       :: <a>Index</a> as x
---       -&gt; Lens' (<a>Prod</a> g as) (g x)
---   </pre>
-lensProd' :: forall as x g f. Functor f => Index as x -> (g x -> f (g x)) -> Prod g as -> f (Prod g as)
-
--- | Retrieve an element in a <a>Prod</a> at a given index.
-indexProd :: Index as x -> Prod f as -> f x
-
--- | A RankN map over items in a <a>Prod</a>.
-mapProd :: forall f g as. () => (forall x. f x -> g x) -> Prod f as -> Prod g as
-
--- | A RankN traversal over items in a <a>Prod</a>.
-traverseProd :: forall f g h as. Applicative h => (forall x. f x -> h (g x)) -> Prod f as -> h (Prod g as)
-
--- | RankN fold over items in a <a>Prod</a>.
-foldMapProd :: forall f as m. Monoid m => (forall x. f x -> m) -> Prod f as -> m
-
--- | Zip together two <a>Prod</a>.
-zipProd :: Prod f as -> Prod g as -> Prod (f :*: g) as
-
--- | Convert a <a>Prod</a> of <a>Sing</a> elements into a <a>Sing</a> of
---   the list of elements.
-prodSing :: Prod Sing as -> Sing as
-
--- | Convert a <a>Sing</a> of a list of elements into a <a>Prod</a> of
---   <a>Sing</a> elements.
-singProd :: Sing as -> Prod Sing as
-
--- | Convert a <a>WitAll</a> into a <a>Prod</a>. This requires providing a
---   singleton witnessing the structure of the list.
-allProd :: Sing as -> WitAll [] (TyCon1 f) as -> Prod f as
-
--- | Convert a <a>Prod</a> into a <a>WitAll</a>.
-prodAll :: Prod f as -> WitAll [] (TyCon1 f) as
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -148,7 +83,7 @@ flipSub :: Substitute as bs x y -> Substitute bs as y x
 --   <a>Insert</a>.
 subToDelIns :: Substitute as bs x y -> (forall cs. Delete as cs x -> Insert cs bs y -> r) -> r
 
--- | An <tt><a>Edit</a> as bs</tt> is an edit script transforming
+-- | An <tt><a>Edit</a> as bs</tt> is a reversible edit script transforming
 --   <tt>as</tt> into <tt>bs</tt> through successive insertions, deletions,
 --   and substitutions.
 data Edit :: [k] -> [k] -> Type
@@ -165,35 +100,37 @@ compEdit :: Edit as bs -> Edit bs cs -> Edit as cs
 --   TODO: Make O(n) using diff lists.
 flipEdit :: Edit as bs -> Edit bs as
 
--- | Insert a value into a <a>Prod</a>, at a position indicated by the
+-- | Insert a value into a <a>Rec</a>, at a position indicated by the
 --   <a>Insert</a>.
-insertProd :: Insert as bs x -> f x -> Prod f as -> Prod f bs
+insertRec :: Insert as bs x -> f x -> Rec f as -> Rec f bs
 
--- | Delete a value in a <a>Prod</a>, at a position indicated by the
+-- | Delete a value in a <a>Rec</a>, at a position indicated by the
 --   <a>Delete</a>.
-deleteProd :: Delete as bs x -> Prod f as -> Prod f bs
+deleteRec :: Delete as bs x -> Rec f as -> Rec f bs
 
--- | Retrieve and delete a value in a <a>Prod</a>, at a position indicated
+-- | Retrieve and delete a value in a <a>Rec</a>, at a position indicated
 --   by the <a>Delete</a>.
-deleteGetProd :: Delete as bs x -> Prod f as -> (f x, Prod f bs)
+deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
 
--- | A type-changing lens into a value in a <a>Prod</a>, given a
---   <a>Substitute</a> indicating which value. This lens can change the
---   type of the value, unlike <a>lensProd'</a>.
+-- | A type-changing lens into a value in a <a>Rec</a>, given a
+--   <a>Substitute</a> indicating which value.
 --   
 --   Read this type signature as:
 --   
 --   <pre>
---   <a>lensProd</a>
+--   <a>recLens</a>
 --       :: <a>Substitute</a> as bs x y
---       -&gt; Lens (<a>Prod</a> g as) (Prod g bs) (g x) (g y)
+--       -&gt; Lens (<a>Rec</a> g as) (Rec g bs) (g x) (g y)
 --   </pre>
-lensProd :: forall as bs x y g f. Functor f => Substitute as bs x y -> (g x -> f (g y)) -> Prod g as -> f (Prod g bs)
+--   
+--   This is simular to <tt>rlensC</tt> from <i>vinyl</i>, but is built
+--   explicitly and inductively, instead of using typeclass magic.
+recLens :: forall as bs x y g f. Functor f => Substitute as bs x y -> (g x -> f (g y)) -> Rec g as -> f (Rec g bs)
 
--- | Substitute a value in a <a>Prod</a> at a given position, indicated by
+-- | Substitute a value in a <a>Rec</a> at a given position, indicated by
 --   the <a>Substitute</a>. This is essentially a specialized version of
---   <a>lensProd</a>.
-substituteProd :: Substitute as bs x y -> (f x -> f y) -> Prod f as -> Prod f bs
+--   <a>recLens</a>.
+substituteRec :: Substitute as bs x y -> (f x -> f y) -> Rec f as -> Rec f bs
 
 -- | If you add an item to <tt>as</tt> to create <tt>bs</tt>, you also need
 --   to shift an <tt><a>Index</a> as y</tt> to <tt>Index bs y</tt>. This
@@ -299,19 +236,19 @@ data Prefix :: [k] -> [k] -> Type
 [PreZ] :: Prefix '[] as
 [PreS] :: Prefix as bs -> Prefix (a : as) (a : bs)
 
--- | Take items from a <a>Prod</a> corresponding to a given <a>Prefix</a>.
-takeProd :: Prefix as bs -> Prod f bs -> Prod f as
+-- | Take items from a <a>Rec</a> corresponding to a given <a>Prefix</a>.
+takeRec :: Prefix as bs -> Rec f bs -> Rec f as
 
--- | A lens into the prefix of a <a>Prod</a>.
+-- | A lens into the prefix of a <a>Rec</a>.
 --   
 --   Read this type signature as:
 --   
 --   <pre>
 --   <a>prefixLens</a>
 --       :: Prefix as bs
---       -&gt; Lens' (Prod f bs) (Prod f as)
+--       -&gt; Lens' (Rec f bs) (Rec f as)
 --   </pre>
-prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Rec g as -> f (Rec g as)) -> Rec g bs -> f (Rec g bs)
 
 -- | Shave off the final inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given prefix. If the index is out of range,
@@ -348,19 +285,19 @@ data Suffix :: [k] -> [k] -> Type
 [SufZ] :: Suffix as as
 [SufS] :: Suffix as bs -> Suffix as (b : bs)
 
--- | Drop items from a <a>Prod</a> corresponding to a given <a>Suffix</a>.
-dropProd :: Suffix as bs -> Prod f bs -> Prod f as
+-- | Drop items from a <a>Rec</a> corresponding to a given <a>Suffix</a>.
+dropRec :: Suffix as bs -> Rec f bs -> Rec f as
 
--- | A lens into the suffix of a <a>Prod</a>.
+-- | A lens into the suffix of a <a>Rec</a>.
 --   
 --   Read this type signature as:
 --   
 --   <pre>
 --   <a>suffixLens</a>
 --       :: Suffix as bs
---       -&gt; Lens' (Prod f bs) (Prod f as)
+--       -&gt; Lens' (Rec f bs) (Rec f as)
 --   </pre>
-suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Prod g as -> f (Prod g as)) -> Prod g bs -> f (Prod g bs)
+suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Rec g as -> f (Rec g as)) -> Rec g bs -> f (Rec g bs)
 
 -- | Shave off the initial inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given suffix If the index is out of range,
@@ -413,29 +350,29 @@ appendToSuffix :: Append as bs cs -> Suffix bs cs
 --   time.
 splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
 
--- | Split a <a>Prod</a> into a prefix and suffix. Basically
---   <a>takeProd</a> and <a>dropProd</a> combined.
-splitProd :: Append as bs cs -> Prod f cs -> (Prod f as, Prod f bs)
+-- | Split a <a>Rec</a> into a prefix and suffix. Basically <a>takeRec</a>
+--   and <a>dropRec</a> combined.
+splitRec :: Append as bs cs -> Rec f cs -> (Rec f as, Rec f bs)
 
--- | Append two <a>Prod</a>s together according to an <a>Append</a>.
-appendProd :: Append as bs cs -> Prod f as -> Prod f bs -> Prod f cs
+-- | Append two <a>Rec</a>s together according to an <a>Append</a>.
+appendRec :: Append as bs cs -> Rec f as -> Rec f bs -> Rec f cs
 
--- | Witness an isomorphism between <a>Prod</a> and two parts that compose
+-- | Witness an isomorphism between <a>Rec</a> and two parts that compose
 --   it.
 --   
 --   Read this type signature as:
 --   
 --   <pre>
---   <a>splitProdIso</a>
+--   <a>splitRecIso</a>
 --       :: Append as  bs  cs
---       -&gt; Iso (Prod f cs)            (Prod f cs)
---              (Prod f as, Prod f bs) (Prod f as, Prod f bs)
+--       -&gt; Iso (Rec f cs)           (Rec f cs)
+--              (Rec f as, Rec f bs) (Rec f as, Rec f bs)
 --   </pre>
 --   
 --   This can be used with the combinators from the lens library.
 --   
---   The <a>Append</a> tells the point to split the <a>Prod</a> at.
-splitProdIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Prod g as, Prod g bs) (f (Prod g as, Prod g bs)) -> p (Prod g cs) (f (Prod g cs))
+--   The <a>Append</a> tells the point to split the <a>Rec</a> at.
+splitRecIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Rec g as, Rec g bs) (f (Rec g as, Rec g bs)) -> p (Rec g cs) (f (Rec g cs))
 
 -- | Split an <a>Index</a> by an <a>Append</a>. If the <a>Index</a> was in
 --   the first part of the list, it'll return <a>Left</a>. If it was in the

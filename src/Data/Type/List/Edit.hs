@@ -1,12 +1,14 @@
-{-# LANGUAGE EmptyCase           #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TypeInType          #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE EmptyCase            #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeInType           #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module      : Data.Type.List.Edit
@@ -45,11 +47,21 @@ module Data.Type.List.Edit (
   , SubstitutedIx(..), substituteIndex, substituteIndex_
   -- ** Converting from indices
   , withDelete, withInsert, withInsertAfter
-  -- ** Type-Level
+  -- * Type-Level
+  , InsertIndex, sInsertIndex
+  , SDeletedIx(..)
+  , DeleteIndex, sDeleteIndex
+  , SSubstitutedIx(..)
+  , SubstituteIndex, sSubstituteIndex
+  -- ** Defunctionalization Symbols
+  , InsertIndexSym0, InsertIndexSym
+  , DeleteIndexSym0, DeleteIndexSym
+  , SubstituteIndexSym0, SubstituteIndexSym
   ) where
 
 import           Data.Functor.Identity
 import           Data.Kind
+import           Data.Singletons
 import           Data.Type.Universe
 import           Data.Vinyl.Core
 import qualified Control.Category      as C
@@ -387,3 +399,125 @@ withInsertAfter
 withInsertAfter = \case
     IZ   -> \f -> f (InsS InsZ)
     IS i -> \f -> withInsertAfter i (f . InsS)
+
+-- | Type-level version of 'insertIndex'.  Because of how GADTs and type
+-- families interact, the type-level lists and kinds of the insertion and
+-- index must be provided.
+type family InsertIndex as bs x y (ins :: Insert as bs x) (i :: Index as y) :: Index bs y where
+    InsertIndex as        (x ': as) x y 'InsZ       i       = 'IS i
+    InsertIndex (y ': as) (y ': bs) x y ('InsS ins) 'IZ     = 'IZ
+    InsertIndex (a ': as) (a ': bs) x y ('InsS ins) ('IS i) = 'IS (InsertIndex as bs x y ins i)
+
+-- | Defunctionalization symbol for 'InsertIndex', expecting only the kind
+-- variables.
+data InsertIndexSym0 as bs x y :: Insert as bs x ~> Index as y ~> Index bs y
+
+-- | Defunctionalization symbol for 'InsertIndex', expecting the 'Insert'
+-- along with the kind variables.
+data InsertIndexSym as bs x y :: Insert as bs x -> Index as y ~> Index bs y
+
+type instance Apply (InsertIndexSym0 as bs x y) ins = InsertIndexSym as bs x y ins
+type instance Apply (InsertIndexSym as bs x y ins) i = InsertIndex as bs x y ins i
+
+-- | Singleton witness for 'InsertIndex'.
+sInsertIndex
+    :: SInsert as bs x ins
+    -> SIndex  as    y i
+    -> SIndex  bs    y (InsertIndex as bs x y ins i)
+sInsertIndex = \case
+    SInsZ     -> SIS
+    SInsS ins -> \case
+      SIZ   -> SIZ
+      SIS i -> SIS (sInsertIndex ins i)
+
+-- | Helper type family for the implementation of 'DeleteIndex', to get
+-- around the lack of case statements at the type level.
+type family SuccDeletedIx b bs x y (del :: DeletedIx bs x y) :: DeletedIx (b ': bs) x y where
+    SuccDeletedIx b bs x x 'GotDeleted = 'GotDeleted
+    SuccDeletedIx b bs x y ('NotDeleted i) = 'NotDeleted ('IS i)
+
+-- | Type-level version of 'deleteIndex'.  Because of how GADTs and type
+-- families interact, the type-level lists and kinds of the insertion and
+-- index must be provided.
+type family DeleteIndex as bs x y (del :: Delete as bs x) (i :: Index as y) :: DeletedIx bs x y where
+    DeleteIndex (x ': bs) bs         x x 'DelZ       'IZ     = 'GotDeleted
+    DeleteIndex (x ': bs) bs         x y 'DelZ       ('IS i) = 'NotDeleted i
+    DeleteIndex (y ': as) (y ': bs)  x y ('DelS del) 'IZ     = 'NotDeleted 'IZ
+    DeleteIndex (b ': as) (b ': bs)  x y ('DelS del) ('IS i) = SuccDeletedIx b bs x y (DeleteIndex as bs x y del i)
+
+-- | Defunctionalization symbol for 'DeleteIndex', expecting only the kind
+-- variables.
+data DeleteIndexSym0 as bs x y :: Delete as bs x ~> Index as y ~> DeletedIx bs x y
+
+-- | Defunctionalization symbol for 'DeleteIndex', expecting the 'Delete'
+-- along with the kind variables.
+data DeleteIndexSym as bs x y :: Delete as bs x -> Index as y ~> DeletedIx bs x y
+
+type instance Apply (DeleteIndexSym0 as bs x y) del = DeleteIndexSym as bs x y del
+type instance Apply (DeleteIndexSym as bs x y del) i = DeleteIndex as bs x y del i
+
+-- | Kind-indexed singleton for 'DeletedIx'.
+data SDeletedIx bs x y :: DeletedIx bs x y -> Type where
+    SGotDeleted :: SDeletedIx bs x x 'GotDeleted
+    SNotDeleted :: SIndex bs y i -> SDeletedIx bs x y ('NotDeleted i)
+
+-- | Singleton witness for 'DeleteIndex'.
+sDeleteIndex
+    :: SDelete as bs x del
+    -> SIndex  as    y i
+    -> SDeletedIx bs x y (DeleteIndex as bs x y del i)
+sDeleteIndex = \case
+    SDelZ -> \case
+      SIZ   -> SGotDeleted
+      SIS i -> SNotDeleted i
+    SDelS del -> \case
+      SIZ   -> SNotDeleted SIZ
+      SIS i -> case sDeleteIndex del i of
+        SGotDeleted   -> SGotDeleted
+        SNotDeleted j -> SNotDeleted (SIS j)
+
+-- | Helper type family for the implementation of 'SubstituteIndex', to get
+-- around the lack of case statements at the type level.
+type family SuccSubstitutedIx b bs x y z (s :: SubstitutedIx bs x y z) :: SubstitutedIx (b ': bs) x y z where
+    SuccSubstitutedIx b bs x y x ('GotSubbed i) = 'GotSubbed ('IS i)
+    SuccSubstitutedIx b bs x y z ('NotSubbed i) = 'NotSubbed ('IS i)
+
+-- | Type-level version of 'subsituteIndex'.  Because of how GADTs and type
+-- families interact, the type-level lists and kinds of the insertion and
+-- index must be provided.
+type family SubstituteIndex as bs x y z (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z where
+    SubstituteIndex (z ': as) (y ': as) z y z 'SubZ     'IZ     = 'GotSubbed 'IZ
+    SubstituteIndex (x ': as) (y ': as) x y z 'SubZ     ('IS i) = 'NotSubbed ('IS i)
+    SubstituteIndex (z ': as) (z ': bs) x y z ('SubS s) 'IZ     = 'NotSubbed 'IZ
+    SubstituteIndex (b ': as) (b ': bs) x y z ('SubS s) ('IS i) = SuccSubstitutedIx b bs x y z (SubstituteIndex as bs x y z s i)
+
+-- | Defunctionalization symbol for 'SubstituteIndex', expecting only the kind
+-- variables.
+data SubstituteIndexSym0 as bs x y z :: Substitute as bs x y ~> Index as z ~> SubstitutedIx bs x y z
+
+-- | Defunctionalization symbol for 'SubstituteIndex', expecting the 'Substitute'
+-- along with the kind variables.
+data SubstituteIndexSym as bs x y z :: Substitute as bs x y -> Index as z ~> SubstitutedIx bs x y z
+
+type instance Apply (SubstituteIndexSym0 as bs x y z) s = SubstituteIndexSym as bs x y z s
+type instance Apply (SubstituteIndexSym as bs x y z s) i = SubstituteIndex as bs x y z s i
+
+-- | Kind-indexed singleton for 'SubstitutedIx'.
+data SSubstitutedIx bs x y z :: SubstitutedIx bs x y z -> Type where
+    SGotSubbed :: SIndex bs y i -> SSubstitutedIx bs z y z ('GotSubbed i)
+    SNotSubbed :: SIndex bs z i -> SSubstitutedIx bs x y z ('NotSubbed i)
+
+-- | Singleton witness for 'SubstituteIndex'.
+sSubstituteIndex
+    :: SSubstitute as bs x y s
+    -> SIndex as z i
+    -> SSubstitutedIx bs x y z (SubstituteIndex as bs x y z s i)
+sSubstituteIndex = \case
+    SSubZ -> \case
+      SIZ   -> SGotSubbed SIZ
+      SIS i -> SNotSubbed (SIS i)
+    SSubS s -> \case
+      SIZ   -> SNotSubbed SIZ
+      SIS i -> case sSubstituteIndex s i of
+        SGotSubbed j -> SGotSubbed (SIS j)
+        SNotSubbed j -> SNotSubbed (SIS j)

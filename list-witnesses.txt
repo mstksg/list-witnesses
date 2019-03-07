@@ -14,7 +14,7 @@
 --   suffixes, and two-way splits of type-level lists.</li>
 --   </ul>
 @package list-witnesses
-@version 0.1.0.0
+@version 0.1.1.0
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -454,8 +454,7 @@ appendRec :: Append as bs cs -> Rec f as -> Rec f bs -> Rec f cs
 --   <pre>
 --   <a>splitRecIso</a>
 --       :: Append as  bs  cs
---       -&gt; Iso (Rec f cs)           (Rec f cs)
---              (Rec f as, Rec f bs) (Rec f as, Rec f bs)
+--       -&gt; Iso' (Rec f cs) (Rec f as, Rec f bs)
 --   </pre>
 --   
 --   This can be used with the combinators from the lens library.
@@ -470,6 +469,65 @@ splitRecIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Rec g as, Rec 
 --   This is essentially <a>takeIndex</a> and <a>dropIndex</a> at the same
 --   time.
 splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
+
+-- | A <tt><a>Interleave</a> as bs cs</tt> witnesses that <tt>cs</tt> is
+--   <tt>as</tt> interleaved with <tt>bs. It is constructed by selectively
+--   zipping items from </tt>as<tt> and </tt>bs@ together, like mergesort
+--   or riffle shuffle.
+--   
+--   You construct a <a>Interleave</a> from <tt>as</tt> and <tt>bs</tt> by
+--   picking "which item" from <tt>as</tt> and <tt>bs</tt> to add to
+--   <tt>cs</tt>.
+--   
+--   Some examples:
+--   
+--   <pre>
+--   IntL (IntL (IntR (IntR IntZ))) :: Interleave '[1,2] '[3,4] '[1,2,3,4]
+--   IntR (IntR (IntL (IntL IntZ))) :: Interleave '[1,2] '[3,4] '[3,4,1,2]
+--   IntL (IntR (IntL (IntR IntZ))) :: Interleave '[1,2] '[3,4] '[1,3,2,4]
+--   IntR (IntL (IntR (IntL IntZ))) :: Interleave '[1,2] '[3,4] '[3,1,4,2]
+--   </pre>
+data Interleave :: [k] -> [k] -> [k] -> Type
+[IntZ] :: Interleave '[] '[] '[]
+[IntL] :: Interleave as bs cs -> Interleave (a : as) bs (a : cs)
+[IntR] :: Interleave as bs cs -> Interleave as (b : bs) (b : cs)
+
+-- | Given two <a>Rec</a>s, interleave the two to create a combined
+--   <a>Rec</a>.
+interleaveRec :: Interleave as bs cs -> Rec f as -> Rec f bs -> Rec f cs
+
+-- | Given a <a>Rec</a>, disinterleave it into two <a>Rec</a>s
+--   corresponding to an <a>Interleave</a>.
+unweaveRec :: Interleave as bs cs -> Rec f cs -> (Rec f as, Rec f bs)
+
+-- | Witness an isomorphism between <a>Rec</a> and two parts that
+--   interleave it.
+--   
+--   Read this type signature as:
+--   
+--   <pre>
+--   <a>interleaveRecIso</a>
+--       :: Interleave as  bs  cs
+--       -&gt; Iso' (Rec f cs) (Rec f as, Rec f bs)
+--   </pre>
+--   
+--   This can be used with the combinators from the lens library.
+--   
+--   The <a>Interleave</a> tells how to unweave the <a>Rec</a>.
+interleaveRecIso :: (Profunctor p, Functor f) => Interleave as bs cs -> p (Rec g as, Rec g bs) (f (Rec g as, Rec g bs)) -> p (Rec g cs) (f (Rec g cs))
+
+-- | Interleave an <a>Index</a> on <tt>as</tt> into a full index on
+--   <tt>cs</tt>, which is <tt>as</tt> interleaved with <tt>bs</tt>.
+injectIndexL :: Interleave as bs cs -> Index as a -> Index cs a
+
+-- | Interleave an <a>Index</a> on <tt>bs</tt> into a full index on
+--   <tt>cs</tt>, which is <tt>as</tt> interleaved with <tt>bs</tt>.
+injectIndexR :: Interleave as bs cs -> Index bs b -> Index cs b
+
+-- | Given an index on <tt>cs</tt>, disinterleave it into either an index
+--   on <tt>as</tt> or on <tt>bs</tt>.
+unweaveIndex :: Interleave as bs cs -> Index cs c -> Either (Index as c) (Index bs c)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)
+instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Interleave as bs cs)

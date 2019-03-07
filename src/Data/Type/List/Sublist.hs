@@ -31,10 +31,13 @@ module Data.Type.List.Sublist (
   , Append(..)
   , prefixToAppend, suffixToAppend
   , appendToPrefix, appendToSuffix, splitAppend
-  -- ** Recuct
+  -- ** Application
   , splitRec, appendRec, splitRecIso
-  -- ** Index
   , splitIndex
+  -- * Interleave
+  , Interleave(..)
+  , interleaveRec, unweaveRec, interleaveRecIso
+  , injectIndexL, injectIndexR, unweaveIndex
   ) where
 
 import           Control.Applicative
@@ -164,8 +167,7 @@ deriving instance Show (Append as bs cs)
 -- @
 -- 'splitRecIso'
 --     :: Append as  bs  cs
---     -> Iso (Rec f cs)           (Rec f cs)
---            (Rec f as, Rec f bs) (Rec f as, Rec f bs)
+--     -> Iso' (Rec f cs) (Rec f as, Rec f bs)
 -- @
 --
 -- This can be used with the combinators from the lens library.
@@ -175,7 +177,7 @@ splitRecIso
     :: (Profunctor p, Functor f)
     => Append as bs cs
     -> p (Rec g as, Rec g bs) (f (Rec g as, Rec g bs))
-    -> p (Rec g cs)            (f (Rec g cs))
+    -> p (Rec g cs)           (f (Rec g cs))
 splitRecIso a = dimap (splitRec a) ((fmap . uncurry) (appendRec a))
 
 -- | Split a 'Rec' into a prefix and suffix.  Basically 'takeRec'
@@ -302,3 +304,113 @@ shiftIndex
 shiftIndex = \case
     SufZ   -> id
     SufS s -> IS . shiftIndex s
+
+-- | A @'Interleave' as bs cs@ witnesses that @cs@ is @as@ interleaved with
+-- @bs. It is constructed by selectively zipping items from @as@ and @bs@
+-- together, like mergesort or riffle shuffle.
+--
+-- You construct a 'Interleave' from @as@ and @bs@ by picking "which item" from
+-- @as@ and @bs@ to add to @cs@.
+--
+-- Some examples:
+--
+-- @
+-- IntL (IntL (IntR (IntR IntZ))) :: Interleave '[1,2] '[3,4] '[1,2,3,4]
+-- IntR (IntR (IntL (IntL IntZ))) :: Interleave '[1,2] '[3,4] '[3,4,1,2]
+-- IntL (IntR (IntL (IntR IntZ))) :: Interleave '[1,2] '[3,4] '[1,3,2,4]
+-- IntR (IntL (IntR (IntL IntZ))) :: Interleave '[1,2] '[3,4] '[3,1,4,2]
+-- @
+--
+-- @since 0.1.1.0
+data Interleave :: [k] -> [k] -> [k] -> Type where
+    IntZ :: Interleave '[] '[] '[]
+    IntL :: Interleave as bs cs -> Interleave (a ': as) bs        (a ': cs)
+    IntR :: Interleave as bs cs -> Interleave as        (b ': bs) (b ': cs)
+
+deriving instance Show (Interleave as bs cs)
+
+-- | Given two 'Rec's, interleave the two to create a combined 'Rec'.
+--
+-- @since 0.1.1.0
+interleaveRec :: Interleave as bs cs -> Rec f as -> Rec f bs -> Rec f cs
+interleaveRec = \case
+    IntZ -> \case
+      RNil -> \case
+        RNil -> RNil
+    IntL m -> \case
+      x :& xs -> \ys -> x :& interleaveRec m xs ys
+    IntR m -> \xs -> \case
+      y :& ys -> y :& interleaveRec m xs ys
+
+-- | Given a 'Rec', disinterleave it into two 'Rec's corresponding to an
+-- 'Interleave'.
+--
+-- @since 0.1.1.0
+unweaveRec :: Interleave as bs cs -> Rec f cs -> (Rec f as, Rec f bs)
+unweaveRec = \case
+    IntZ -> \case
+      RNil -> (RNil, RNil)
+    IntL m -> \case
+      x :& xs -> first  (x :&) . unweaveRec m $ xs
+    IntR m -> \case
+      x :& xs -> second (x :&) . unweaveRec m $ xs
+
+-- | Interleave an 'Index' on @as@ into a full index on @cs@, which is @as@
+-- interleaved with @bs@.
+--
+-- @since 0.1.1.0
+injectIndexL :: Interleave as bs cs -> Index as a -> Index cs a
+injectIndexL = \case
+    IntZ -> \case {}
+    IntL m -> \case
+      IZ -> IZ
+      IS i -> IS (injectIndexL m i)
+    IntR m -> IS . injectIndexL m
+
+-- | Interleave an 'Index' on @bs@ into a full index on @cs@, which is @as@
+-- interleaved with @bs@.
+--
+-- @since 0.1.1.0
+injectIndexR :: Interleave as bs cs -> Index bs b -> Index cs b
+injectIndexR = \case
+    IntZ -> \case {}
+    IntL m -> IS . injectIndexR m
+    IntR m -> \case
+      IZ -> IZ
+      IS i -> IS (injectIndexR m i)
+
+-- | Given an index on @cs@, disinterleave it into either an index on @as@
+-- or on @bs@.
+--
+-- @since 0.1.1.0
+unweaveIndex :: Interleave as bs cs -> Index cs c -> Either (Index as c) (Index bs c)
+unweaveIndex = \case
+    IntZ -> \case {}
+    IntL m -> \case
+      IZ   -> Left IZ
+      IS i -> first IS $ unweaveIndex m i
+    IntR m -> \case
+      IZ   -> Right IZ
+      IS i -> second IS $ unweaveIndex m i
+
+-- | Witness an isomorphism between 'Rec' and two parts that interleave it.
+--
+-- Read this type signature as:
+--
+-- @
+-- 'interleaveRecIso'
+--     :: Interleave as  bs  cs
+--     -> Iso' (Rec f cs) (Rec f as, Rec f bs)
+-- @
+--
+-- This can be used with the combinators from the lens library.
+--
+-- The 'Interleave' tells how to unweave the 'Rec'.
+--
+-- @since 0.1.1.0
+interleaveRecIso
+    :: (Profunctor p, Functor f)
+    => Interleave as bs cs
+    -> p (Rec g as, Rec g bs) (f (Rec g as, Rec g bs))
+    -> p (Rec g cs)           (f (Rec g cs))
+interleaveRecIso m = dimap (unweaveRec m) ((fmap . uncurry) (interleaveRec m))

@@ -233,6 +233,64 @@ withInsert :: Index as x -> (forall bs. Insert as bs y -> r) -> r
 --   placing an item <i>directly after</i> the given element. The type is
 --   existentailly quantified.
 withInsertAfter :: Index as x -> (forall bs. Insert as bs y -> r) -> r
+
+-- | Type-level version of <a>insertIndex</a>. Because of how GADTs and
+--   type families interact, the type-level lists and kinds of the
+--   insertion and index must be provided.
+type family InsertIndex as bs x y (ins :: Insert as bs x) (i :: Index as y) :: Index bs y
+
+-- | Singleton witness for <a>InsertIndex</a>.
+sInsertIndex :: SInsert as bs x ins -> SIndex as y i -> SIndex bs y (InsertIndex as bs x y ins i)
+
+-- | Kind-indexed singleton for <a>DeletedIx</a>.
+data SDeletedIx bs x y :: DeletedIx bs x y -> Type
+[SGotDeleted] :: SDeletedIx bs x x  'GotDeleted
+[SNotDeleted] :: SIndex bs y i -> SDeletedIx bs x y ( 'NotDeleted i)
+
+-- | Type-level version of <a>deleteIndex</a>. Because of how GADTs and
+--   type families interact, the type-level lists and kinds of the
+--   insertion and index must be provided.
+type family DeleteIndex as bs x y (del :: Delete as bs x) (i :: Index as y) :: DeletedIx bs x y
+
+-- | Singleton witness for <a>DeleteIndex</a>.
+sDeleteIndex :: SDelete as bs x del -> SIndex as y i -> SDeletedIx bs x y (DeleteIndex as bs x y del i)
+
+-- | Kind-indexed singleton for <a>SubstitutedIx</a>.
+data SSubstitutedIx bs x y z :: SubstitutedIx bs x y z -> Type
+[SGotSubbed] :: SIndex bs y i -> SSubstitutedIx bs z y z ( 'GotSubbed i)
+[SNotSubbed] :: SIndex bs z i -> SSubstitutedIx bs x y z ( 'NotSubbed i)
+
+-- | Type-level version of <tt>subsituteIndex</tt>. Because of how GADTs
+--   and type families interact, the type-level lists and kinds of the
+--   insertion and index must be provided.
+type family SubstituteIndex as bs x y z (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z
+
+-- | Singleton witness for <a>SubstituteIndex</a>.
+sSubstituteIndex :: SSubstitute as bs x y s -> SIndex as z i -> SSubstitutedIx bs x y z (SubstituteIndex as bs x y z s i)
+
+-- | Defunctionalization symbol for <a>InsertIndex</a>, expecting only the
+--   kind variables.
+data InsertIndexSym0 as bs x y :: Insert as bs x ~> Index as y ~> Index bs y
+
+-- | Defunctionalization symbol for <a>InsertIndex</a>, expecting the
+--   <a>Insert</a> along with the kind variables.
+data InsertIndexSym as bs x y :: Insert as bs x -> Index as y ~> Index bs y
+
+-- | Defunctionalization symbol for <a>DeleteIndex</a>, expecting only the
+--   kind variables.
+data DeleteIndexSym0 as bs x y :: Delete as bs x ~> Index as y ~> DeletedIx bs x y
+
+-- | Defunctionalization symbol for <a>DeleteIndex</a>, expecting the
+--   <a>Delete</a> along with the kind variables.
+data DeleteIndexSym as bs x y :: Delete as bs x -> Index as y ~> DeletedIx bs x y
+
+-- | Defunctionalization symbol for <a>SubstituteIndex</a>, expecting only
+--   the kind variables.
+data SubstituteIndexSym0 as bs x y z :: Substitute as bs x y ~> Index as z ~> SubstitutedIx bs x y z
+
+-- | Defunctionalization symbol for <a>SubstituteIndex</a>, expecting the
+--   <a>Substitute</a> along with the kind variables.
+data SubstituteIndexSym as bs x y z :: Substitute as bs x y -> Index as z ~> SubstitutedIx bs x y z
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Insert as bs x)
 instance forall a (as :: [a]) (bs :: [a]) (x :: a) (del :: Data.Type.List.Edit.Insert as bs x). GHC.Show.Show (Data.Type.List.Edit.SInsert as bs x del)
 instance forall k (as :: [k]) (bs :: [k]) (x :: k). GHC.Show.Show (Data.Type.List.Edit.Delete as bs x)

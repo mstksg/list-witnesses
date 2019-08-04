@@ -40,12 +40,13 @@ module Data.Type.List.Sublist (
   , injectIndexL, injectIndexR, unweaveIndex
   ) where
 
-import           Control.Applicative
 import           Data.Bifunctor
 import           Data.Kind
 import           Data.Profunctor
 import           Data.Type.Universe
 import           Data.Vinyl.Core
+import           Lens.Micro
+import           Lens.Micro.Extras
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
 --
@@ -70,28 +71,12 @@ data Prefix :: [k] -> [k] -> Type where
 deriving instance Show (Prefix as bs)
 
 -- | A lens into the prefix of a 'Rec'.
---
--- Read this type signature as:
---
--- @
--- 'prefixLens'
---     :: Prefix as bs
---     -> Lens' (Rec f bs) (Rec f as)
--- @
-prefixLens
-    :: forall as bs g f. Functor f
-    => Prefix as bs
-    -> (Rec g as -> f (Rec g as))
-    -> Rec g bs
-    -> f (Rec g bs)
+prefixLens :: Prefix as bs -> Lens' (Rec f bs) (Rec f as)
 prefixLens p = prefixToAppend p $ \a -> splitRecIso a . _1
-  where
-    _1 :: (a -> f b) -> (a, c) -> f (b, c)
-    _1 f (x, y) = (, y) <$> f x
 
 -- | Take items from a 'Rec' corresponding to a given 'Prefix'.
 takeRec :: Prefix as bs -> Rec f bs -> Rec f as
-takeRec p = getConst . prefixLens p Const
+takeRec p = view (prefixLens p)
 
 -- | A @'Suffix' as bs@ witnesses that @as@ is a suffix of @bs@.
 --
@@ -116,28 +101,12 @@ data Suffix :: [k] -> [k] -> Type where
 deriving instance Show (Suffix as bs)
 
 -- | A lens into the suffix of a 'Rec'.
---
--- Read this type signature as:
---
--- @
--- 'suffixLens'
---     :: Suffix as bs
---     -> Lens' (Rec f bs) (Rec f as)
--- @
-suffixLens
-    :: forall as bs g f. Functor f
-    => Suffix as bs
-    -> (Rec g as -> f (Rec g as))
-    -> Rec g bs
-    -> f (Rec g bs)
+suffixLens :: Suffix as bs -> Lens' (Rec f bs) (Rec f as)
 suffixLens p = suffixToAppend p $ \a -> splitRecIso a . _2
-  where
-    _2 :: (a -> f b) -> (c, a) -> f (c, b)
-    _2 f (x, y) = (x ,) <$> f y
 
 -- | Drop items from a 'Rec' corresponding to a given 'Suffix'.
 dropRec :: Suffix as bs -> Rec f bs -> Rec f as
-dropRec p = getConst . suffixLens p Const
+dropRec p = view (suffixLens p)
 
 -- | An @'Append' as bs cs@ witnesses that @cs@ is the result of appending
 -- @as@ and @bs@.

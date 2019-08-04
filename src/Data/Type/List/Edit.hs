@@ -59,11 +59,11 @@ module Data.Type.List.Edit (
   , SubstituteIndexSym0, SubstituteIndexSym
   ) where
 
-import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Singletons
 import           Data.Type.Universe
 import           Data.Vinyl.Core
+import           Lens.Micro
 import qualified Control.Category      as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
@@ -230,14 +230,6 @@ deleteRec = \case
 -- | A type-changing lens into a value in a 'Rec', given a 'Substitute'
 -- indicating which value.
 --
--- Read this type signature as:
---
--- @
--- 'recLens'
---     :: 'Substitute' as bs x y
---     -> Lens ('Rec' f as) (Rec f bs) (f x) (f y)
--- @
---
 -- For example:
 --
 -- @
@@ -252,16 +244,14 @@ deleteRec = \case
 -- This is similar to 'rlensC' from /vinyl/, but is built explicitly and
 -- inductively, instead of using typeclass magic.
 recLens
-    :: forall as bs x y g f. Functor f
+    :: forall as bs x y f. ()
     => Substitute as bs x y
-    -> (g x -> f (g y))
-    -> Rec g as
-    -> f (Rec g bs)
-recLens s0 f = go s0
+    -> Lens (Rec f as) (Rec f bs) (f x) (f y)
+recLens s0 (f :: f x -> g (f y)) = go s0
   where
     go  :: Substitute cs ds x y
-        -> Rec g cs
-        -> f (Rec g ds)
+        -> Rec f cs
+        -> g (Rec f ds)
     go = \case
       SubZ -> \case
         x :& xs -> (:& xs) <$> f x
@@ -275,7 +265,7 @@ substituteRec
     -> (f x -> f y)
     -> Rec f as
     -> Rec f bs
-substituteRec s f = runIdentity . recLens s (Identity . f)
+substituteRec s = over (recLens s)
 
 -- | If you add an item to @as@ to create @bs@, you also need to shift an
 -- @'Index' as y@ to @Index bs y@.  This shifts the 'Index' in @as@ to

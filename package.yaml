@@ -1,5 +1,5 @@
 name:                list-witnesses
-version:             0.1.1.0
+version:             0.1.1.1
 github:              "mstksg/list-witnesses"
 license:             BSD3
 author:              "Justin Le"
@@ -38,3 +38,4 @@ library:
   - profunctors
   - singletons
   - vinyl
+  - microlens

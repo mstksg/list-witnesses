@@ -1,6 +1,16 @@
 Changelog
 =========
 
+Version 0.1.1.1
+---------------
+
+*August 3, 2019*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.1.1>
+
+*   Add *microlens* as a dependency, and use actual type synonyms for lenses.
+    Also got rid of re-implementations of over and view.
+
 Version 0.1.1.0
 ---------------
 

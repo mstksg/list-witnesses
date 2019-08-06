@@ -1,13 +1,17 @@
-{-# LANGUAGE EmptyCase           #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeInType          #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
 
 -- |
 -- Module      : Data.Type.List.Sublist
@@ -22,20 +26,20 @@
 module Data.Type.List.Sublist (
   -- * Prefix and Suffix
   -- ** Prefix
-    Prefix(..)
+    Prefix(..), IsPrefix, autoPrefix
   , takeRec, prefixLens, takeIndex, weakenIndex
   -- ** Suffix
-  , Suffix(..)
+  , Suffix(..), IsSuffix, autoSuffix
   , dropRec, suffixLens, dropIndex, shiftIndex
   -- * Append
-  , Append(..)
+  , Append(..), IsAppend, autoAppend
   , prefixToAppend, suffixToAppend
   , appendToPrefix, appendToSuffix, splitAppend
   -- ** Application
   , splitRec, appendRec, splitRecIso
   , splitIndex
   -- * Interleave
-  , Interleave(..)
+  , Interleave(..), IsInterleave, autoInterleave
   , interleaveRec, unweaveRec, interleaveRecIso
   , injectIndexL, injectIndexR, unweaveIndex
   ) where
@@ -43,9 +47,14 @@ module Data.Type.List.Sublist (
 import           Data.Bifunctor
 import           Data.Kind
 import           Data.Profunctor
+import           Data.Singletons
+import           Data.Singletons.Decide
+import           Data.Singletons.Prelude.List
+import           Data.Type.Predicate
+import           Data.Type.Predicate.Auto
 import           Data.Type.Universe
 import           Data.Vinyl.Core
-import           Lens.Micro
+import           Lens.Micro hiding ((%~))
 import           Lens.Micro.Extras
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
@@ -78,6 +87,37 @@ prefixLens p = prefixToAppend p $ \a -> splitRecIso a . _1
 takeRec :: Prefix as bs -> Rec f bs -> Rec f as
 takeRec p = view (prefixLens p)
 
+-- | A type-level predicate that a given list has @as@ as a prefix.
+--
+-- @since 0.1.2.0
+type IsPrefix as = TyPred (Prefix as)
+
+instance Auto (IsPrefix '[]) bs where
+    auto = PreZ
+
+instance Auto (IsPrefix as) bs => Auto (IsPrefix (a ': as)) (a ': bs) where
+    auto = PreS (auto @_ @(IsPrefix as) @bs)
+
+instance (SDecide k, SingI (as :: [k])) => Decidable (IsPrefix as) where
+    decide = case sing @as of
+      SNil         -> \_ -> Proved PreZ
+      x `SCons` (xs :: Sing as') -> \case
+        SNil -> Disproved $ \case {}
+        y `SCons` (ys :: Sing bs') -> case x %~ y of
+          Proved Refl -> withSingI xs $ case decide @(IsPrefix as') ys of
+            Proved p -> Proved (PreS p)
+            Disproved v -> Disproved $ \case
+              PreS p -> v p
+          Disproved v -> Disproved $ \case
+            PreS _ -> v Refl
+
+-- | Automatically generate a 'Prefix' if @as@ and @bs@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoPrefix :: forall as bs. Auto (IsPrefix as) bs => Prefix as bs
+autoPrefix = auto @_ @(IsPrefix as) @bs
+
 -- | A @'Suffix' as bs@ witnesses that @as@ is a suffix of @bs@.
 --
 -- Some examples:
@@ -99,6 +139,35 @@ data Suffix :: [k] -> [k] -> Type where
     SufS :: Suffix as bs -> Suffix as (b ': bs)
 
 deriving instance Show (Suffix as bs)
+
+-- | A type-level predicate that a given list has @as@ as a suffix.
+--
+-- @since 0.1.2.0
+type IsSuffix as = TyPred (Suffix as)
+
+instance Auto (IsSuffix as) as where
+    auto = SufZ
+
+instance Auto (IsSuffix as) bs => Auto (IsSuffix as) (b ': bs) where
+    auto = SufS (auto @_ @(IsSuffix as) @bs)
+
+instance (SDecide k, SingI (as :: [k])) => Decidable (IsSuffix as) where
+    decide = \case
+      SNil -> case sing @as of
+        SNil -> Proved SufZ
+        _ `SCons` _ -> Disproved $ \case {}
+      _ `SCons` ys -> case decide @(IsSuffix as) ys of
+        Proved s    -> Proved $ SufS s
+        Disproved v -> Disproved $ \case
+          SufZ   -> error "help me"
+          SufS s -> v s
+
+-- | Automatically generate a 'Suffix' if @as@ and @bs@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoSuffix :: forall as bs. Auto (IsSuffix as) bs => Suffix as bs
+autoSuffix = auto @_ @(IsSuffix as) @bs
 
 -- | A lens into the suffix of a 'Rec'.
 suffixLens :: Suffix as bs -> Lens' (Rec f bs) (Rec f as)
@@ -128,6 +197,42 @@ data Append :: [k] -> [k] -> [k] -> Type where
     AppS :: Append as bs cs -> Append (a ': as) bs (a ': cs)
 
 deriving instance Show (Append as bs cs)
+
+-- | A type-level predicate that a given list is the result of appending of
+-- @as@ and @bs@.
+--
+-- @since 0.1.2.0
+type IsAppend as bs = TyPred (Append as bs)
+
+instance Auto (IsAppend '[] as) as where
+    auto = AppZ
+
+instance Auto (IsAppend as bs) cs => Auto (IsAppend (a ': as) bs) (a ': cs) where
+    auto = AppS (auto @_ @(IsAppend as bs) @cs)
+
+instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsAppend as bs) where
+    decide = case sing @as of
+      SNil         -> \cs -> case sing @bs %~ cs of
+        Proved Refl -> Proved AppZ
+        Disproved v -> Disproved $ \case
+          AppZ -> v Refl
+      x `SCons` (xs :: Sing as') -> \case
+        SNil -> Disproved $ \case {}
+        y `SCons` (ys :: Sing bs') -> case x %~ y of
+          Proved Refl -> withSingI xs $ case decide @(IsAppend as' bs) ys of
+            Proved p -> Proved (AppS p)
+            Disproved v -> Disproved $ \case
+              AppS p -> v p
+          Disproved v -> Disproved $ \case
+            AppS _ -> v Refl
+
+
+-- | Automatically generate an 'Append' if @as@, @bs@ and @cs@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoAppend :: forall as bs cs. Auto (IsAppend as bs) cs => Append as bs cs
+autoAppend = auto @_ @(IsAppend as bs) @cs
 
 -- | Witness an isomorphism between 'Rec' and two parts that compose it.
 --
@@ -278,7 +383,7 @@ shiftIndex = \case
 -- @bs. It is constructed by selectively zipping items from @as@ and @bs@
 -- together, like mergesort or riffle shuffle.
 --
--- You construct a 'Interleave' from @as@ and @bs@ by picking "which item" from
+-- You construct an 'Interleave' from @as@ and @bs@ by picking "which item" from
 -- @as@ and @bs@ to add to @cs@.
 --
 -- Some examples:
@@ -297,6 +402,77 @@ data Interleave :: [k] -> [k] -> [k] -> Type where
     IntR :: Interleave as bs cs -> Interleave as        (b ': bs) (b ': cs)
 
 deriving instance Show (Interleave as bs cs)
+
+-- | A type-level predicate that a given list is the "interleave" of @as@
+-- and @bs@.
+--
+-- @since 0.1.2.0
+type IsInterleave as bs = TyPred (Interleave as bs)
+
+instance Auto (IsInterleave '[] '[]) '[] where
+    auto = IntZ
+
+instance Auto (IsInterleave as bs) cs => Auto (IsInterleave (a ': as) bs) (a ': cs) where
+    auto = IntL (auto @_ @(IsInterleave as bs) @cs)
+
+instance Auto (IsInterleave as bs) cs => Auto (IsInterleave as (b ': bs)) (b ': cs) where
+    auto = IntR (auto @_ @(IsInterleave as bs) @cs)
+
+instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInterleave as bs) where
+    decide = case sing @as of
+      SNil -> case sing @bs of
+        SNil -> \case
+          SNil -> Proved IntZ
+          _ `SCons` _ -> Disproved $ \case {}
+        y `SCons` (ys :: Sing bs') -> \case
+          z `SCons` (zs :: Sing cs') -> case y %~ z of
+            Proved Refl -> withSingI ys $ case decide @(IsInterleave '[] bs') zs of
+              Proved i -> Proved $ IntR i
+              Disproved v -> Disproved $ \case
+                IntR i -> v i
+            Disproved v -> Disproved $ \case
+              IntR _ -> v Refl
+          SNil -> Disproved $ \case {}
+      x `SCons` (xs :: Sing as') -> case sing @bs of
+        SNil -> \case
+          z `SCons` (zs :: Sing cs') -> case x %~ z of
+            Proved Refl -> withSingI xs $ case decide @(IsInterleave as' '[]) zs of
+              Proved i -> Proved $ IntL i
+              Disproved v -> Disproved $ \case
+                IntL i -> v i
+            Disproved v -> Disproved $ \case
+              IntL _ -> v Refl
+          SNil -> Disproved $ \case {}
+        y `SCons` (ys :: Sing bs') -> \case
+          SNil -> Disproved $ \case {}
+          z `SCons` (zs :: Sing cs') -> case x %~ z of
+            Proved Refl -> withSingI xs $ case decide @(IsInterleave as' bs) zs of
+              Proved i    -> Proved $ IntL i
+              Disproved v -> case y %~ z of
+                Proved Refl -> withSingI ys $ case decide @(IsInterleave as bs') zs of
+                  Proved i -> Proved $ IntR i
+                  Disproved u -> Disproved $ \case
+                    IntL i -> v i
+                    IntR i -> u i
+                Disproved u -> Disproved $ \case
+                  IntL i -> v i
+                  IntR _ -> u Refl
+            Disproved v -> case y %~ z of
+              Proved Refl -> withSingI ys $ case decide @(IsInterleave as bs') zs of
+                Proved i -> Proved $ IntR i
+                Disproved u -> Disproved $ \case
+                  IntL _ -> v Refl
+                  IntR i -> u i
+              Disproved u -> Disproved $ \case
+                IntL _ -> v Refl
+                IntR _ -> u Refl
+
+-- | Automatically generate an 'Interleave' if @as@ and @bs@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoInterleave :: forall as bs cs. Auto (IsInterleave as bs) cs => Interleave as bs cs
+autoInterleave = auto @_ @(IsInterleave as bs) @cs
 
 -- | Given two 'Rec's, interleave the two to create a combined 'Rec'.
 --

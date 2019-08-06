@@ -1,3 +1,5 @@
 .stack-work/
 list-witnesses.cabal
+.ghc.environment*
+dist-newstyle/
 *~

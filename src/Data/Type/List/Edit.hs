@@ -1,14 +1,19 @@
-{-# LANGUAGE EmptyCase            #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE KindSignatures       #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE RankNTypes           #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeInType           #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 -- Module      : Data.Type.List.Edit
@@ -22,11 +27,11 @@
 -- Witnesses regarding single-item edits of lists.
 module Data.Type.List.Edit (
   -- * Simple edits
-    Insert(..)
-  , Delete(..)
+    Insert(..), IsInsert, autoInsert
+  , Delete(..), IsDelete, autoDelete
   , insToDel
   , delToIns
-  , Substitute(..)
+  , Substitute(..), IsSubstitute, autoSubstitute
   , flipSub
   , subToDelIns
   -- ** Singletons
@@ -61,10 +66,15 @@ module Data.Type.List.Edit (
 
 import           Data.Kind
 import           Data.Singletons
+import           Data.Singletons.Decide
+import           Data.Singletons.Prelude.List hiding (Delete, Insert)
+import           Data.Type.Predicate
+import           Data.Type.Predicate.Auto
+import           Data.Type.Predicate.Param
 import           Data.Type.Universe
 import           Data.Vinyl.Core
-import           Lens.Micro
-import qualified Control.Category      as C
+import           Lens.Micro hiding ((%~))
+import qualified Control.Category             as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
 -- position in list @as@ to produce list @bs@.  It is essentially 'Delete'
@@ -85,6 +95,59 @@ data Insert :: [k] -> [k] -> k -> Type where
     InsS :: Insert as bs x -> Insert (a ': as) (a ': bs) x
 
 deriving instance Show (Insert as bs x)
+
+-- | A type-level predicate that a given value can be used as an insertion
+-- to change @as@ to @bs@.
+--
+-- @since 0.1.2.0
+type IsInsert as bs = TyPred (Insert as bs)
+
+instance Auto (IsInsert as (x ': as)) x where
+    auto = InsZ
+
+instance Auto (IsInsert as bs) x => Auto (IsInsert (a ': as) (a ': bs)) x where
+    auto = InsS (auto @_ @(IsInsert as bs) @x)
+
+instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) where
+    decide z = case sing @bs of
+      SNil -> Disproved $ \case {}
+      y `SCons` (ys :: Sing bs') -> case y %~ z of
+        Proved Refl -> case sing @as %~ ys of
+          Proved Refl -> Proved InsZ
+          Disproved v -> case sing @as of
+            SNil -> Disproved $ \case
+              InsZ -> v Refl
+            x `SCons` (xs :: Sing as') -> case x %~ y of
+              Proved Refl -> withSingI xs $ withSingI ys $ case decide @(IsInsert as' bs') z of
+                Proved i -> Proved $ InsS i
+                Disproved u -> Disproved $ \case
+                  InsZ -> u InsZ
+                  InsS i -> u i
+              Disproved u -> Disproved $ \case
+                InsZ   -> v Refl
+                InsS _ -> u Refl
+        Disproved v -> case sing @as of
+          SNil -> Disproved $ \case
+            InsZ -> v Refl
+          x `SCons` (xs :: Sing as') -> case x %~ y of
+            Proved Refl -> withSingI xs $ withSingI ys $ case decide @(IsInsert as' bs') z of
+              Proved i -> Proved $ InsS i
+              Disproved u -> Disproved $ \case
+                InsZ -> u InsZ
+                InsS i -> u i
+            Disproved u -> Disproved $ \case
+              InsZ   -> v Refl
+              InsS _ -> u Refl
+
+-- instance (SDecide k, SingI (as :: [k])) => Decidable (Found (TyPP (Insert as))) where
+--     decide = _
+
+-- | Automatically generate an 'Insert' if @as@, @bs@ and @x@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
+autoInsert = auto @_ @(IsInsert as bs) @x
 
 -- | Kind-indexed singleton for 'Insert'.
 data SInsert as bs x :: Insert as bs x -> Type where
@@ -117,6 +180,28 @@ data Delete :: [k] -> [k] -> k -> Type where
 
 deriving instance Show (Delete as bs x)
 
+-- | A type-level predicate that a given value can be used as a deletion
+-- to change @as@ to @bs@.
+--
+-- @since 0.1.2.0
+type IsDelete as bs = TyPred (Delete as bs)
+
+instance Auto (IsDelete (x ': as) as) x where
+    auto = DelZ
+
+instance Auto (IsDelete as bs) x => Auto (IsDelete (a ': as) (a ': bs)) x where
+    auto = DelS (auto @_ @(IsDelete as bs) @x)
+
+instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsDelete as bs) where
+    decide = mapDecision insToDel delToIns . decide @(IsInsert bs as)
+
+-- | Automatically generate an 'Delete' if @as@, @bs@ and @x@ are known
+-- statically.
+--
+-- @since 0.1.2.0
+autoDelete :: forall as bs x. Auto (IsDelete as bs) x => Delete as bs x
+autoDelete = auto @_ @(IsDelete as bs) @x
+
 -- | Kind-indexed singleton for 'Delete'.
 data SDelete as bs x :: Delete as bs x -> Type where
     SDelZ :: SDelete (x ': as) as x 'DelZ
@@ -146,6 +231,26 @@ data Substitute :: [k] -> [k] -> k -> k -> Type where
     SubS :: Substitute as bs x y -> Substitute (c ': as) (c ': bs) x y
 
 deriving instance Show (Substitute as bs x y)
+
+-- | A type-level predicate that a given value can be used as
+-- a substitution of @x@ to change @as@ to @bs@.
+--
+-- @since 0.1.2.0
+type IsSubstitute as bs x = TyPred (Substitute as bs x)
+
+instance Auto (IsSubstitute (x ': as) (y ': as) x) y where
+    auto = SubZ
+
+instance Auto (IsSubstitute as bs x) y => Auto (IsSubstitute (c ': as) (c ': bs) x) y where
+    auto = SubS (auto @_ @(IsSubstitute as bs x) @y)
+
+-- | Automatically generate an 'Substitute' if @as@, @bs@, @x@, and @y@ are
+-- known statically.
+--
+-- @since 0.1.2.0
+autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute as bs x y
+autoSubstitute = auto @_ @(IsSubstitute as bs x) @y
+
 
 -- | Kind-indexed singleton for 'Substitute'.
 data SSubstitute as bs x y :: Substitute as bs x y -> Type where

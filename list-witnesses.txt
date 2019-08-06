@@ -14,7 +14,7 @@
 --   suffixes, and two-way splits of type-level lists.</li>
 --   </ul>
 @package list-witnesses
-@version 0.1.1.0
+@version 0.1.2.0
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -38,6 +38,14 @@ data Insert :: [k] -> [k] -> k -> Type
 [InsZ] :: Insert as (x : as) x
 [InsS] :: Insert as bs x -> Insert (a : as) (a : bs) x
 
+-- | A type-level predicate that a given value can be used as an insertion
+--   to change <tt>as</tt> to <tt>bs</tt>.
+type IsInsert as bs = TyPred (Insert as bs)
+
+-- | Automatically generate an <a>Insert</a> if <tt>as</tt>, <tt>bs</tt>
+--   and <tt>x</tt> are known statically.
+autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
+
 -- | A <tt><a>Delete</a> as bs x</tt> is a witness that you can delete item
 --   <tt>x</tt> from <tt>as</tt> to produce the list <tt>bs</tt>. It is
 --   essentially <a>Insert</a> flipped.
@@ -54,6 +62,14 @@ data Insert :: [k] -> [k] -> k -> Type
 data Delete :: [k] -> [k] -> k -> Type
 [DelZ] :: Delete (x : as) as x
 [DelS] :: Delete as bs x -> Delete (a : as) (a : bs) x
+
+-- | A type-level predicate that a given value can be used as a deletion to
+--   change <tt>as</tt> to <tt>bs</tt>.
+type IsDelete as bs = TyPred (Delete as bs)
+
+-- | Automatically generate an <a>Delete</a> if <tt>as</tt>, <tt>bs</tt>
+--   and <tt>x</tt> are known statically.
+autoDelete :: forall as bs x. Auto (IsDelete as bs) x => Delete as bs x
 
 -- | Flip an insertion.
 insToDel :: Insert as bs x -> Delete bs as x
@@ -75,6 +91,14 @@ delToIns :: Delete as bs x -> Insert bs as x
 data Substitute :: [k] -> [k] -> k -> k -> Type
 [SubZ] :: Substitute (x : as) (y : as) x y
 [SubS] :: Substitute as bs x y -> Substitute (c : as) (c : bs) x y
+
+-- | A type-level predicate that a given value can be used as a
+--   substitution of <tt>x</tt> to change <tt>as</tt> to <tt>bs</tt>.
+type IsSubstitute as bs x = TyPred (Substitute as bs x)
+
+-- | Automatically generate an <a>Substitute</a> if <tt>as</tt>,
+--   <tt>bs</tt>, <tt>x</tt>, and <tt>y</tt> are known statically.
+autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute as bs x y
 
 -- | Flip a substitution
 flipSub :: Substitute as bs x y -> Substitute bs as y x
@@ -133,14 +157,6 @@ deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
 -- | A type-changing lens into a value in a <a>Rec</a>, given a
 --   <a>Substitute</a> indicating which value.
 --   
---   Read this type signature as:
---   
---   <pre>
---   <a>recLens</a>
---       :: <a>Substitute</a> as bs x y
---       -&gt; Lens (<a>Rec</a> f as) (Rec f bs) (f x) (f y)
---   </pre>
---   
 --   For example:
 --   
 --   <pre>
@@ -154,7 +170,7 @@ deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
 --   
 --   This is similar to <tt>rlensC</tt> from <i>vinyl</i>, but is built
 --   explicitly and inductively, instead of using typeclass magic.
-recLens :: forall as bs x y g f. Functor f => Substitute as bs x y -> (g x -> f (g y)) -> Rec g as -> f (Rec g bs)
+recLens :: forall as bs x y f. () => Substitute as bs x y -> Lens (Rec f as) (Rec f bs) (f x) (f y)
 
 -- | Substitute a value in a <a>Rec</a> at a given position, indicated by
 --   the <a>Substitute</a>. This is essentially a specialized version of
@@ -299,6 +315,14 @@ instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Edit.Edit as bs)
 instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.Edit.DeletedIx bs x y)
 instance Control.Category.Category Data.Type.List.Edit.Edit
+instance forall k (x :: k) (as :: [k]) (y :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (x : as) (y : as) x) y
+instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (c :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute as bs x) y => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (c : as) (c : bs) x) y
+instance forall k (x :: k) (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (x : as) as) x
+instance forall k (as :: [k]) (bs :: [k]) (x :: k) (a :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete as bs) x => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (a : as) (a : bs)) x
+instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Edit.IsDelete as bs)
+instance forall k (as :: [k]) (x :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert as (x : as)) x
+instance forall k (as :: [k]) (bs :: [k]) (x :: k) (a :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert as bs) x => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert (a : as) (a : bs)) x
+instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Edit.IsInsert as bs)
 
 
 -- | Witnesses regarding sublists of lists.
@@ -325,19 +349,18 @@ data Prefix :: [k] -> [k] -> Type
 [PreZ] :: Prefix '[] as
 [PreS] :: Prefix as bs -> Prefix (a : as) (a : bs)
 
+-- | A type-level predicate that a given list has <tt>as</tt> as a prefix.
+type IsPrefix as = TyPred (Prefix as)
+
+-- | Automatically generate a <a>Prefix</a> if <tt>as</tt> and <tt>bs</tt>
+--   are known statically.
+autoPrefix :: forall as bs. Auto (IsPrefix as) bs => Prefix as bs
+
 -- | Take items from a <a>Rec</a> corresponding to a given <a>Prefix</a>.
 takeRec :: Prefix as bs -> Rec f bs -> Rec f as
 
 -- | A lens into the prefix of a <a>Rec</a>.
---   
---   Read this type signature as:
---   
---   <pre>
---   <a>prefixLens</a>
---       :: Prefix as bs
---       -&gt; Lens' (Rec f bs) (Rec f as)
---   </pre>
-prefixLens :: forall as bs g f. Functor f => Prefix as bs -> (Rec g as -> f (Rec g as)) -> Rec g bs -> f (Rec g bs)
+prefixLens :: Prefix as bs -> Lens' (Rec f bs) (Rec f as)
 
 -- | Shave off the final inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given prefix. If the index is out of range,
@@ -374,19 +397,18 @@ data Suffix :: [k] -> [k] -> Type
 [SufZ] :: Suffix as as
 [SufS] :: Suffix as bs -> Suffix as (b : bs)
 
+-- | A type-level predicate that a given list has <tt>as</tt> as a suffix.
+type IsSuffix as = TyPred (Suffix as)
+
+-- | Automatically generate a <a>Suffix</a> if <tt>as</tt> and <tt>bs</tt>
+--   are known statically.
+autoSuffix :: forall as bs. Auto (IsSuffix as) bs => Suffix as bs
+
 -- | Drop items from a <a>Rec</a> corresponding to a given <a>Suffix</a>.
 dropRec :: Suffix as bs -> Rec f bs -> Rec f as
 
 -- | A lens into the suffix of a <a>Rec</a>.
---   
---   Read this type signature as:
---   
---   <pre>
---   <a>suffixLens</a>
---       :: Suffix as bs
---       -&gt; Lens' (Rec f bs) (Rec f as)
---   </pre>
-suffixLens :: forall as bs g f. Functor f => Suffix as bs -> (Rec g as -> f (Rec g as)) -> Rec g bs -> f (Rec g bs)
+suffixLens :: Suffix as bs -> Lens' (Rec f bs) (Rec f as)
 
 -- | Shave off the initial inhabitants of an <a>Index</a>, keeping only
 --   indices a part of a given suffix If the index is out of range,
@@ -419,6 +441,14 @@ shiftIndex :: Suffix as bs -> Index as x -> Index bs x
 data Append :: [k] -> [k] -> [k] -> Type
 [AppZ] :: Append '[] as as
 [AppS] :: Append as bs cs -> Append (a : as) bs (a : cs)
+
+-- | A type-level predicate that a given list is the result of appending of
+--   <tt>as</tt> and <tt>bs</tt>.
+type IsAppend as bs = TyPred (Append as bs)
+
+-- | Automatically generate an <a>Append</a> if <tt>as</tt>, <tt>bs</tt>
+--   and <tt>cs</tt> are known statically.
+autoAppend :: forall as bs cs. Auto (IsAppend as bs) cs => Append as bs cs
 
 -- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
 --   <tt>bs</tt>.
@@ -475,7 +505,7 @@ splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
 --   zipping items from </tt>as<tt> and </tt>bs@ together, like mergesort
 --   or riffle shuffle.
 --   
---   You construct a <a>Interleave</a> from <tt>as</tt> and <tt>bs</tt> by
+--   You construct an <a>Interleave</a> from <tt>as</tt> and <tt>bs</tt> by
 --   picking "which item" from <tt>as</tt> and <tt>bs</tt> to add to
 --   <tt>cs</tt>.
 --   
@@ -491,6 +521,14 @@ data Interleave :: [k] -> [k] -> [k] -> Type
 [IntZ] :: Interleave '[] '[] '[]
 [IntL] :: Interleave as bs cs -> Interleave (a : as) bs (a : cs)
 [IntR] :: Interleave as bs cs -> Interleave as (b : bs) (b : cs)
+
+-- | A type-level predicate that a given list is the "interleave" of
+--   <tt>as</tt> and <tt>bs</tt>.
+type IsInterleave as bs = TyPred (Interleave as bs)
+
+-- | Automatically generate an <a>Interleave</a> if <tt>as</tt> and
+--   <tt>bs</tt> are known statically.
+autoInterleave :: forall as bs cs. Auto (IsInterleave as bs) cs => Interleave as bs cs
 
 -- | Given two <a>Rec</a>s, interleave the two to create a combined
 --   <a>Rec</a>.
@@ -531,3 +569,16 @@ instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Interleave as bs cs)
+instance Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave '[] '[]) '[]
+instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave (a2 : as) bs) (a2 : cs)
+instance forall a (as :: [a]) (bs :: [a]) (cs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as (b : bs)) (b : cs)
+instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsInterleave as bs)
+instance forall k (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend '[] as) as
+instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend (a2 : as) bs) (a2 : cs)
+instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsAppend as bs)
+instance forall k (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) as
+instance forall a (as :: [a]) (bs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) bs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) (b : bs)
+instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsSuffix as)
+instance forall k (bs :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsPrefix '[]) bs
+instance forall a1 (as :: [a1]) (bs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsPrefix as) bs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsPrefix (a2 : as)) (a2 : bs)
+instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsPrefix as)

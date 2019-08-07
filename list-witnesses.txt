@@ -211,7 +211,7 @@ deleteGetRec :: Delete as bs x -> Rec f as -> (f x, Rec f bs)
 --   The number of <a>SubS</a> in the index essentially indicates the index
 --   to edit at.
 --   
---   This is similar to <tt>rlensC</tt> from <i>vinyl</i>, but is built
+--   This is similar to <a>rlensC</a> from <i>vinyl</i>, but is built
 --   explicitly and inductively, instead of using typeclass magic.
 recLens :: forall as bs x y f. () => Substitute as bs x y -> Lens (Rec f as) (Rec f bs) (f x) (f y)
 
@@ -319,8 +319,8 @@ data SSubstitutedIx bs x y z :: SubstitutedIx bs x y z -> Type
 [SGotSubbed] :: SIndex bs y i -> SSubstitutedIx bs z y z ( 'GotSubbed i)
 [SNotSubbed] :: SIndex bs z i -> SSubstitutedIx bs x y z ( 'NotSubbed i)
 
--- | Type-level version of <tt>subsituteIndex</tt>. Because of how GADTs
---   and type families interact, the type-level lists and kinds of the
+-- | Type-level version of <a>substituteIndex</a>. Because of how GADTs and
+--   type families interact, the type-level lists and kinds of the
 --   insertion and index must be provided.
 type family SubstituteIndex as bs x y z (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z
 
@@ -549,6 +549,17 @@ splitRecIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Rec g as, Rec 
 --   time.
 splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
 
+-- | A useful pattern synonym for using <a>Append</a> with <tt>++</tt> from
+--   <a>Data.Singletons.Prelude.List</a>.
+--   
+--   As a <i>pattern</i>, this brings <tt>(as ++ bs) ~ cs</tt> into the
+--   context whenever you use it to match on an <tt><a>Append</a> as bs
+--   cs</tt>.
+--   
+--   As an <i>expression</i>, this constructs an <tt><a>Append</a> as bs
+--   cs</tt> as long as you have <tt>(as ++ bs) ~ cs</tt> in the context.
+pattern AppendWit :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+
 -- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
 --   cs</tt>, using <tt>++</tt> from <a>Data.Singletons.Prelude.List</a>.
 appendWit :: Append as bs cs -> (as ++ bs) :~: cs
@@ -556,12 +567,40 @@ appendWit :: Append as bs cs -> (as ++ bs) :~: cs
 -- | <a>appendWit</a> stated as a <a>Predicate</a> implication.
 implyAppend :: IsAppend as bs --> EqualTo (as ++ bs)
 
+-- | The inverse of <a>appendWit</a>: if we know <tt>(as ++ bs) ~ cs</tt>
+--   (using <tt>++</tt> from <a>Data.Singletons.Prelude.List</a>), we can
+--   create an <tt><a>Append</a> as bs cs</tt> given structure witnesses
+--   <a>Sing</a>.
+unAppendWit :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
+
+-- | A useful pattern synonym for using <a>Append</a> with <tt>++</tt> from
+--   <a>Data.Vinyl.TypeLevel</a>.
+--   
+--   As a <i>pattern</i>, this brings <tt>(as ++ bs) ~ cs</tt> into the
+--   context whenever you use it to match on an <tt><a>Append</a> as bs
+--   cs</tt>.
+--   
+--   As an <i>expression</i>, this constructs an <tt><a>Append</a> as bs
+--   cs</tt> as long as you have <tt>(as ++ bs) ~ cs</tt> in the context.
+pattern AppendWitV :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+
 -- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
 --   cs</tt>, using <tt>++</tt> from <a>Data.Vinyl.TypeLevel</a>.
-appendWit' :: Append as bs cs -> (as ++ bs) :~: cs
+appendWitV :: Append as bs cs -> (as ++ bs) :~: cs
 
--- | <a>appendWit'</a> stated as a <a>Predicate</a> implication.
-implyAppend' :: IsAppend as bs --> EqualTo (as ++ bs)
+-- | <a>appendWitV</a> stated as a <a>Predicate</a> implication.
+implyAppendV :: IsAppend as bs --> EqualTo (as ++ bs)
+
+-- | The inverse of <a>appendWitV</a>: if we know <tt>(as ++ bs) ~ cs</tt>
+--   (using <tt>++</tt> from <a>Data.Vinyl.TypeLevel</a>), we can create an
+--   <tt><a>Append</a> as bs cs</tt> given structure witnesses <a>Sing</a>.
+unAppendWitV :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
+
+-- | Combine the powers of <a>AppendWit</a> and <a>AppendWitV</a> by
+--   matching on an <a>Append</a> to witness <tt>(as ++ bs) ~ cs</tt> for
+--   <i>both</i> <tt>++</tt> from <a>Data.Singletons.Prelude.List</a> and
+--   <a>Data.Vinyl.TypeLevel</a>.
+pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as ++ bs) ~ cs) => Append as bs cs
 
 -- | Given a witness <tt><a>Append</a> as bs cs</tt>, prove that
 --   singleton's <tt>++</tt> from <a>Data.Singletons.Prelude.List</a> is
@@ -648,6 +687,12 @@ injectIndexR :: Interleave as bs cs -> Index bs b -> Index cs b
 -- | Given an index on <tt>cs</tt>, disinterleave it into either an index
 --   on <tt>as</tt> or on <tt>bs</tt>.
 unweaveIndex :: Interleave as bs cs -> Index cs c -> Either (Index as c) (Index bs c)
+
+-- | Turn an <a>Interleave</a> into a <a>Rec</a> of indices from either
+--   sublist.
+--   
+--   Warning: O(n^2)
+interleavedIxes :: Interleave as bs cs -> Rec (Index as :+: Index bs) cs
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)

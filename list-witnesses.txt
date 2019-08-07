@@ -38,10 +38,6 @@ data Insert :: [k] -> [k] -> k -> Type
 [InsZ] :: Insert as (x : as) x
 [InsS] :: Insert as bs x -> Insert (a : as) (a : bs) x
 
--- | A type-level predicate that a given value can be used as an insertion
---   to change <tt>as</tt> to <tt>bs</tt>.
-type IsInsert as bs = TyPred (Insert as bs)
-
 -- | Automatically generate an <a>Insert</a> if <tt>as</tt>, <tt>bs</tt>
 --   and <tt>x</tt> are known statically.
 autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
@@ -62,10 +58,6 @@ autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
 data Delete :: [k] -> [k] -> k -> Type
 [DelZ] :: Delete (x : as) as x
 [DelS] :: Delete as bs x -> Delete (a : as) (a : bs) x
-
--- | A type-level predicate that a given value can be used as a deletion to
---   change <tt>as</tt> to <tt>bs</tt>.
-type IsDelete as bs = TyPred (Delete as bs)
 
 -- | Automatically generate an <a>Delete</a> if <tt>as</tt>, <tt>bs</tt>
 --   and <tt>x</tt> are known statically.
@@ -107,6 +99,42 @@ flipSub :: Substitute as bs x y -> Substitute bs as y x
 --   <a>Insert</a>.
 subToDelIns :: Substitute as bs x y -> (forall cs. Delete as cs x -> Insert cs bs y -> r) -> r
 
+-- | A type-level predicate that a given value can be used as an insertion
+--   to change <tt>as</tt> to <tt>bs</tt>.
+type IsInsert as bs = TyPred (Insert as bs)
+
+-- | If <tt>bs</tt> satisfies <tt><a>InsertedInto</a> as</tt>, it means
+--   that there exists some element <tt>x</tt> such that
+--   <tt><a>IsInsert</a> as bs @@ x</tt>: you can get <tt>bs</tt> by
+--   inserting <tt>x</tt> into <tt>as</tt> somewhere.
+--   
+--   In other words, <tt><a>InsertedInto</a> as</tt> is satisfied by
+--   <tt>bs</tt> if you can turn <tt>as</tt> into <tt>bs</tt> by inserting
+--   one individual item.
+--   
+--   You can find this element (if it exists) using <a>search</a>, or the
+--   <a>Decidable</a> instance of <tt><a>Found</a> (<a>InsertedInto</a>
+--   as)</tt>.
+type InsertedInto (as :: [k]) = (TyPP (Insert as) :: ParamPred [k] k)
+
+-- | A type-level predicate that a given value can be used as a deletion to
+--   change <tt>as</tt> to <tt>bs</tt>.
+type IsDelete as bs = TyPred (Delete as bs)
+
+-- | If <tt>bs</tt> satisfies <tt><a>DeletedFrom</a> as</tt>, it means that
+--   there exists some element <tt>x</tt> such that <tt><a>IsDelete</a> as
+--   bs @@ x</tt>: you can get <tt>bs</tt> by deleting <tt>x</tt> from
+--   <tt>as</tt> somewhere.
+--   
+--   In other words, <tt><a>DeletedFrom</a> as</tt> is satisfied by
+--   <tt>bs</tt> if you can turn <tt>as</tt> into <tt>bs</tt> by deleting
+--   one individual item.
+--   
+--   You can find this element (if it exists) using <a>search</a>, or the
+--   <a>Decidable</a> instance of <tt><a>Found</a> (<a>DeletedFrom</a>
+--   as)</tt>.
+type DeletedFrom (as :: [k]) = (TyPP (Delete as) :: ParamPred [k] k)
+
 -- | Kind-indexed singleton for <a>Insert</a>.
 data SInsert as bs x :: Insert as bs x -> Type
 [SInsZ] :: SInsert as (x : as) x  'InsZ
@@ -137,7 +165,8 @@ data Edit :: [k] -> [k] -> Type
 -- | Compose two <a>Edit</a>s
 compEdit :: Edit as bs -> Edit bs cs -> Edit as cs
 
--- | Reverse an <a>Edit</a> script. O(n^2). Please do not use.
+-- | Reverse an <a>Edit</a> script. O(n^2). Please do not use ever in any
+--   circumstance.
 --   
 --   TODO: Make O(n) using diff lists.
 flipEdit :: Edit as bs -> Edit bs as
@@ -317,9 +346,11 @@ instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.E
 instance Control.Category.Category Data.Type.List.Edit.Edit
 instance forall k (x :: k) (as :: [k]) (y :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (x : as) (y : as) x) y
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (c :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute as bs x) y => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (c : as) (c : bs) x) y
+instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.Predicate.Param.Found (Data.Type.List.Edit.DeletedFrom as))
 instance forall k (x :: k) (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (x : as) as) x
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (a :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete as bs) x => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (a : as) (a : bs)) x
 instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Edit.IsDelete as bs)
+instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.Predicate.Param.Found (Data.Type.List.Edit.InsertedInto as))
 instance forall k (as :: [k]) (x :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert as (x : as)) x
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (a :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert as bs) x => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsInsert (a : as) (a : bs)) x
 instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Edit.IsInsert as bs)

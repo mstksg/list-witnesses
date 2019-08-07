@@ -84,10 +84,6 @@ data Substitute :: [k] -> [k] -> k -> k -> Type
 [SubZ] :: Substitute (x : as) (y : as) x y
 [SubS] :: Substitute as bs x y -> Substitute (c : as) (c : bs) x y
 
--- | A type-level predicate that a given value can be used as a
---   substitution of <tt>x</tt> to change <tt>as</tt> to <tt>bs</tt>.
-type IsSubstitute as bs x = TyPred (Substitute as bs x)
-
 -- | Automatically generate an <a>Substitute</a> if <tt>as</tt>,
 --   <tt>bs</tt>, <tt>x</tt>, and <tt>y</tt> are known statically.
 autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute as bs x y
@@ -114,7 +110,14 @@ type IsInsert as bs = TyPred (Insert as bs)
 --   
 --   You can find this element (if it exists) using <a>search</a>, or the
 --   <a>Decidable</a> instance of <tt><a>Found</a> (<a>InsertedInto</a>
---   as)</tt>.
+--   as)</tt>:
+--   
+--   <pre>
+--   <a>searchTC</a> :: SingI as =&gt; Sing bs -&gt; <a>Decision</a> (<a>Σ</a> k (<a>IsInsert</a> as bs))
+--   </pre>
+--   
+--   This will find you the single element you need to insert into
+--   <tt>as</tt> to get <tt>bs</tt>, if it exists.
 type InsertedInto (as :: [k]) = (TyPP (Insert as) :: ParamPred [k] k)
 
 -- | A type-level predicate that a given value can be used as a deletion to
@@ -133,7 +136,18 @@ type IsDelete as bs = TyPred (Delete as bs)
 --   You can find this element (if it exists) using <a>search</a>, or the
 --   <a>Decidable</a> instance of <tt><a>Found</a> (<a>DeletedFrom</a>
 --   as)</tt>.
+--   
+--   <pre>
+--   <a>searchTC</a> :: SingI as =&gt; Sing bs -&gt; <a>Decision</a> (<a>Σ</a> k (<a>IsDelete</a> as bs))
+--   </pre>
+--   
+--   This will find you the single element you need to delete from
+--   <tt>as</tt> to get <tt>bs</tt>, if it exists.
 type DeletedFrom (as :: [k]) = (TyPP (Delete as) :: ParamPred [k] k)
+
+-- | A type-level predicate that a given value can be used as a
+--   substitution of <tt>x</tt> to change <tt>as</tt> to <tt>bs</tt>.
+type IsSubstitute as bs x = TyPred (Substitute as bs x)
 
 -- | Kind-indexed singleton for <a>Insert</a>.
 data SInsert as bs x :: Insert as bs x -> Type
@@ -481,6 +495,10 @@ type IsAppend as bs = TyPred (Append as bs)
 --   and <tt>cs</tt> are known statically.
 autoAppend :: forall as bs cs. Auto (IsAppend as bs) cs => Append as bs cs
 
+-- | Given <tt>as</tt> and <tt>bs</tt>, create an <tt><a>Append</a> as bs
+--   cs</tt> with, with <tt>cs</tt> existentially quantified
+withAppend :: Sing as -> Sing bs -> (forall cs. Sing cs -> Append as bs cs -> r) -> r
+
 -- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
 --   <tt>bs</tt>.
 prefixToAppend :: Prefix as cs -> (forall bs. Append as bs cs -> r) -> r
@@ -530,6 +548,40 @@ splitRecIso :: (Profunctor p, Functor f) => Append as bs cs -> p (Rec g as, Rec 
 --   This is essentially <a>takeIndex</a> and <a>dropIndex</a> at the same
 --   time.
 splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
+
+-- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
+--   cs</tt>, using <tt>++</tt> from <a>Data.Singletons.Prelude.List</a>.
+appendWit :: Append as bs cs -> (as ++ bs) :~: cs
+
+-- | <a>appendWit</a> stated as a <a>Predicate</a> implication.
+implyAppend :: IsAppend as bs --> EqualTo (as ++ bs)
+
+-- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
+--   cs</tt>, using <tt>++</tt> from <a>Data.Vinyl.TypeLevel</a>.
+appendWit' :: Append as bs cs -> (as ++ bs) :~: cs
+
+-- | <a>appendWit'</a> stated as a <a>Predicate</a> implication.
+implyAppend' :: IsAppend as bs --> EqualTo (as ++ bs)
+
+-- | Given a witness <tt><a>Append</a> as bs cs</tt>, prove that
+--   singleton's <tt>++</tt> from <a>Data.Singletons.Prelude.List</a> is
+--   the same as vinyl's <tt>++</tt> <a>Data.Vinyl.TypeLevel</a>.
+convertAppends :: Append as bs cs -> (as ++ bs) :~: (as ++ bs)
+
+-- | A parameterized predicate that you can use with <a>select</a>: With an
+--   <tt><a>AppendedTo</a> as</tt>, you can give <tt>bs</tt> and get
+--   <tt>cs</tt> in return, where <tt>cs</tt> is the appending of
+--   <tt>as</tt> and <tt>bs</tt>.
+--   
+--   Run it with:
+--   
+--   <pre>
+--   <a>selectTC</a> :: SingI as =&gt; Sing bs -&gt; <a>Σ</a> [k] (<a>IsAppend</a> as bs)
+--   </pre>
+--   
+--   <a>select</a> for <a>AppendedTo</a> is pretty much just
+--   <a>withAppend</a>.
+type AppendedTo as = TyPP (Append as)
 
 -- | A <tt><a>Interleave</a> as bs cs</tt> witnesses that <tt>cs</tt> is
 --   <tt>as</tt> interleaved with <tt>bs. It is constructed by selectively
@@ -604,6 +656,8 @@ instance Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave '[] 
 instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave (a2 : as) bs) (a2 : cs)
 instance forall a (as :: [a]) (bs :: [a]) (cs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as (b : bs)) (b : cs)
 instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsInterleave as bs)
+instance forall k (as :: [k]). Data.Singletons.Internal.SingI as => Data.Type.Predicate.Decidable (Data.Type.Predicate.Param.Found (Data.Type.List.Sublist.AppendedTo as))
+instance forall k (as :: [k]). Data.Singletons.Internal.SingI as => Data.Type.Predicate.Provable (Data.Type.Predicate.Param.Found (Data.Type.List.Sublist.AppendedTo as))
 instance forall k (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend '[] as) as
 instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend (a2 : as) bs) (a2 : cs)
 instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsAppend as bs)

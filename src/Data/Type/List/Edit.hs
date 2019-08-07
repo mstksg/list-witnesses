@@ -27,13 +27,17 @@
 -- Witnesses regarding single-item edits of lists.
 module Data.Type.List.Edit (
   -- * Simple edits
-    Insert(..), IsInsert, autoInsert
-  , Delete(..), IsDelete, autoDelete
+    Insert(..), autoInsert
+  , Delete(..), autoDelete
   , insToDel
   , delToIns
-  , Substitute(..), IsSubstitute, autoSubstitute
+  , Substitute(..), autoSubstitute
   , flipSub
   , subToDelIns
+  -- ** Predicates
+  , IsInsert, InsertedInto
+  , IsDelete, DeletedFrom
+  , IsSubstitute
   -- ** Singletons
   , SInsert(..)
   , SDelete(..)
@@ -67,7 +71,8 @@ module Data.Type.List.Edit (
 import           Data.Kind
 import           Data.Singletons
 import           Data.Singletons.Decide
-import           Data.Singletons.Prelude.List hiding (Delete, Insert)
+import           Data.Singletons.Prelude
+import           Data.Singletons.Sigma
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
 import           Data.Type.Predicate.Param
@@ -111,14 +116,14 @@ instance Auto (IsInsert as bs) x => Auto (IsInsert (a ': as) (a ': bs)) x where
 instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) where
     decide z = case sing @bs of
       SNil -> Disproved $ \case {}
-      y `SCons` (ys :: Sing bs') -> case y %~ z of
+      y `SCons` (ys@Sing :: Sing bs') -> case y %~ z of
         Proved Refl -> case sing @as %~ ys of
           Proved Refl -> Proved InsZ
           Disproved v -> case sing @as of
             SNil -> Disproved $ \case
               InsZ -> v Refl
-            x `SCons` (xs :: Sing as') -> case x %~ y of
-              Proved Refl -> withSingI xs $ withSingI ys $ case decide @(IsInsert as' bs') z of
+            x `SCons` (Sing :: Sing as') -> case x %~ y of
+              Proved Refl -> case decide @(IsInsert as' bs') z of
                 Proved i -> Proved $ InsS i
                 Disproved u -> Disproved $ \case
                   InsZ -> u InsZ
@@ -129,8 +134,8 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) 
         Disproved v -> case sing @as of
           SNil -> Disproved $ \case
             InsZ -> v Refl
-          x `SCons` (xs :: Sing as') -> case x %~ y of
-            Proved Refl -> withSingI xs $ withSingI ys $ case decide @(IsInsert as' bs') z of
+          x `SCons` (Sing :: Sing as') -> case x %~ y of
+            Proved Refl -> case decide @(IsInsert as' bs') z of
               Proved i -> Proved $ InsS i
               Disproved u -> Disproved $ \case
                 InsZ -> u InsZ
@@ -139,8 +144,36 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) 
               InsZ   -> v Refl
               InsS _ -> u Refl
 
--- instance (SDecide k, SingI (as :: [k])) => Decidable (Found (TyPP (Insert as))) where
---     decide = _
+-- | If @bs@ satisfies @'InsertedInto' as@, it means that there exists some
+-- element @x@ such that @'IsInsert' as bs \@\@ x@: you can get @bs@ by
+-- inserting @x@ into @as@ somewhere.
+--
+-- In other words, @'InsertedInto' as@ is satisfied by @bs@ if you can turn
+-- @as@ into @bs@ by inserting one individual item.
+--
+-- You can find this element (if it exists) using 'search', or the
+-- 'Decidable' instance of @'Found' ('InsertedInto' as)@.
+--
+-- @since 0.1.2.0
+type InsertedInto (as :: [k]) = (TyPP (Insert as) :: ParamPred [k] k)
+
+instance (SDecide k, SingI (as :: [k])) => Decidable (Found (InsertedInto as)) where
+    decide = \case
+      SNil -> Disproved $ \(_ :&: i) -> case i of {}
+      y `SCons` ys -> case sing @as %~ ys of
+        Proved Refl -> Proved $ y :&: InsZ
+        Disproved v -> case sing @as of
+          SNil -> Disproved $ \(_ :&: i) -> case i of
+            InsZ -> v Refl
+          x `SCons` (Sing :: Sing as') -> case x %~ y of
+            Proved Refl -> case decide @(Found (InsertedInto as')) ys of
+              Proved (z :&: i) -> Proved $ z :&: InsS i
+              Disproved u      -> Disproved $ \(z :&: i) -> case i of
+                InsZ    -> u $ z :&: InsZ
+                InsS i' -> u $ z :&: i'
+            Disproved u -> Disproved $ \(_ :&: i) -> case i of
+              InsZ   -> v Refl
+              InsS _ -> u Refl
 
 -- | Automatically generate an 'Insert' if @as@, @bs@ and @x@ are known
 -- statically.
@@ -194,6 +227,25 @@ instance Auto (IsDelete as bs) x => Auto (IsDelete (a ': as) (a ': bs)) x where
 
 instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsDelete as bs) where
     decide = mapDecision insToDel delToIns . decide @(IsInsert bs as)
+
+-- | If @bs@ satisfies @'DeletedFrom' as@, it means that there exists some
+-- element @x@ such that @'IsDelete' as bs \@\@ x@: you can get @bs@ by
+-- deleting @x@ from @as@ somewhere.
+--
+-- In other words, @'DeletedFrom' as@ is satisfied by @bs@ if you can turn
+-- @as@ into @bs@ by deleting one individual item.
+--
+-- You can find this element (if it exists) using 'search', or the
+-- 'Decidable' instance of @'Found' ('DeletedFrom' as)@.
+--
+-- @since 0.1.2.0
+type DeletedFrom (as :: [k]) = (TyPP (Delete as) :: ParamPred [k] k)
+
+instance (SDecide k, SingI (as :: [k])) => Decidable (Found (DeletedFrom as)) where
+    decide (Sing :: Sing bs) =
+        mapDecision (mapSigma (sing @IdSym0) insToDel)
+                    (mapSigma (sing @IdSym0) delToIns)
+      $ decide @(Found (InsertedInto bs)) (sing @as)
 
 -- | Automatically generate an 'Delete' if @as@, @bs@ and @x@ are known
 -- statically.
@@ -298,7 +350,8 @@ instance C.Category Edit where
     id = ENil
     xs . ys = compEdit ys xs
 
--- | Reverse an 'Edit' script.  O(n^2).  Please do not use.
+-- | Reverse an 'Edit' script.  O(n^2).  Please do not use ever in any
+-- circumstance.
 --
 -- TODO: Make O(n) using diff lists.
 flipEdit :: Edit as bs -> Edit bs as

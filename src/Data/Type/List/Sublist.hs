@@ -101,10 +101,10 @@ instance Auto (IsPrefix as) bs => Auto (IsPrefix (a ': as)) (a ': bs) where
 instance (SDecide k, SingI (as :: [k])) => Decidable (IsPrefix as) where
     decide = case sing @as of
       SNil         -> \_ -> Proved PreZ
-      x `SCons` (xs :: Sing as') -> \case
+      x `SCons` (Sing :: Sing as') -> \case
         SNil -> Disproved $ \case {}
         y `SCons` (ys :: Sing bs') -> case x %~ y of
-          Proved Refl -> withSingI xs $ case decide @(IsPrefix as') ys of
+          Proved Refl -> case decide @(IsPrefix as') ys of
             Proved p -> Proved (PreS p)
             Disproved v -> Disproved $ \case
               PreS p -> v p
@@ -216,10 +216,10 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsAppend as bs) 
         Proved Refl -> Proved AppZ
         Disproved v -> Disproved $ \case
           AppZ -> v Refl
-      x `SCons` (xs :: Sing as') -> \case
+      x `SCons` (Sing :: Sing as') -> \case
         SNil -> Disproved $ \case {}
         y `SCons` (ys :: Sing bs') -> case x %~ y of
-          Proved Refl -> withSingI xs $ case decide @(IsAppend as' bs) ys of
+          Proved Refl -> case decide @(IsAppend as' bs) ys of
             Proved p -> Proved (AppS p)
             Disproved v -> Disproved $ \case
               AppS p -> v p
@@ -424,32 +424,32 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInterleave as 
         SNil -> \case
           SNil -> Proved IntZ
           _ `SCons` _ -> Disproved $ \case {}
-        y `SCons` (ys :: Sing bs') -> \case
+        y `SCons` (Sing :: Sing bs') -> \case
           z `SCons` (zs :: Sing cs') -> case y %~ z of
-            Proved Refl -> withSingI ys $ case decide @(IsInterleave '[] bs') zs of
+            Proved Refl -> case decide @(IsInterleave '[] bs') zs of
               Proved i -> Proved $ IntR i
               Disproved v -> Disproved $ \case
                 IntR i -> v i
             Disproved v -> Disproved $ \case
               IntR _ -> v Refl
           SNil -> Disproved $ \case {}
-      x `SCons` (xs :: Sing as') -> case sing @bs of
+      x `SCons` (Sing :: Sing as') -> case sing @bs of
         SNil -> \case
           z `SCons` (zs :: Sing cs') -> case x %~ z of
-            Proved Refl -> withSingI xs $ case decide @(IsInterleave as' '[]) zs of
+            Proved Refl -> case decide @(IsInterleave as' '[]) zs of
               Proved i -> Proved $ IntL i
               Disproved v -> Disproved $ \case
                 IntL i -> v i
             Disproved v -> Disproved $ \case
               IntL _ -> v Refl
           SNil -> Disproved $ \case {}
-        y `SCons` (ys :: Sing bs') -> \case
+        y `SCons` (Sing :: Sing bs') -> \case
           SNil -> Disproved $ \case {}
           z `SCons` (zs :: Sing cs') -> case x %~ z of
-            Proved Refl -> withSingI xs $ case decide @(IsInterleave as' bs) zs of
+            Proved Refl -> case decide @(IsInterleave as' bs) zs of
               Proved i    -> Proved $ IntL i
               Disproved v -> case y %~ z of
-                Proved Refl -> withSingI ys $ case decide @(IsInterleave as bs') zs of
+                Proved Refl -> case decide @(IsInterleave as bs') zs of
                   Proved i -> Proved $ IntR i
                   Disproved u -> Disproved $ \case
                     IntL i -> v i
@@ -458,7 +458,7 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInterleave as 
                   IntL i -> v i
                   IntR _ -> u Refl
             Disproved v -> case y %~ z of
-              Proved Refl -> withSingI ys $ case decide @(IsInterleave as bs') zs of
+              Proved Refl -> case decide @(IsInterleave as bs') zs of
                 Proved i -> Proved $ IntR i
                 Disproved u -> Disproved $ \case
                   IntL _ -> v Refl

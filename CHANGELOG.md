@@ -1,6 +1,16 @@
 Changelog
 =========
 
+Version 0.1.2.0
+---------------
+
+*August 7, 2019*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.2.0>
+
+*   Add predicates (`IsInsert`, `IsPrefix`, etc.) and `Auto` and `Decidable`
+    instances for most of the data types, for auto-generation and searches.
+
 Version 0.1.1.1
 ---------------
 

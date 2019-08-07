@@ -309,6 +309,7 @@ pattern AppendWit :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs =>
 pattern AppendWit <- (appendWit @as @bs @cs -> Refl)
   where
     AppendWit = unAppendWit @as @bs @cs sing sing
+{-# COMPLETE AppendWit #-}
 
 -- | 'appendWit' stated as a 'Predicate' implication.
 --
@@ -354,16 +355,20 @@ pattern AppendWitV :: forall as bs cs. (SingI as, SingI bs) => (as V.++ bs) ~ cs
 pattern AppendWitV <- (appendWitV @as @bs @cs -> Refl)
   where
     AppendWitV = unAppendWitV @as @bs @cs sing sing
+{-# COMPLETE AppendWitV #-}
 
 -- | Combine the powers of 'AppendWit' and 'AppendWitV' by matching on an
 -- 'Append' to witness @(as ++ bs) ~ cs@ for /both/ @++@ from
--- "Data.Singletons.Prelude.List" and "Data.Vinyl.TypeLevel".
+-- "Data.Singletons.Prelude.List" and "Data.Vinyl.TypeLevel".  This also
+-- witnesses that @(as ++ bs) ~ (as ++ bs)@ (for the two different @++@s)
+-- by transitive property.
 --
 -- @since 0.1.2.0
 pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as V.++ bs) ~ cs) => Append as bs cs
 pattern AppendWit' <- ((\a -> (a,a)) -> (AppendWit, AppendWitV))
   where
     AppendWit' = AppendWit
+{-# COMPLETE AppendWitV #-}
 
 -- | 'appendWitV' stated as a 'Predicate' implication.
 --

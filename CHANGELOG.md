@@ -10,6 +10,8 @@ Version 0.1.2.0
 
 *   Add predicates (`IsInsert`, `IsPrefix`, etc.) and `Auto` and `Decidable`
     instances for most of the data types, for auto-generation and searches.
+*   Add some functions for creating `Append`s and witnesses of concatenation
+    type families from `Append`s.
 
 Version 0.1.1.1
 ---------------

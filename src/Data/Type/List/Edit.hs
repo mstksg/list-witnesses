@@ -152,7 +152,14 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) 
 -- @as@ into @bs@ by inserting one individual item.
 --
 -- You can find this element (if it exists) using 'search', or the
--- 'Decidable' instance of @'Found' ('InsertedInto' as)@.
+-- 'Decidable' instance of @'Found' ('InsertedInto' as)@:
+--
+-- @
+-- 'searchTC' :: SingI as => Sing bs -> 'Decision' ('Σ' k ('IsInsert' as bs))
+-- @
+--
+-- This will find you the single element you need to insert into @as@ to
+-- get @bs@, if it exists.
 --
 -- @since 0.1.2.0
 type InsertedInto (as :: [k]) = (TyPP (Insert as) :: ParamPred [k] k)
@@ -237,6 +244,13 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsDelete as bs) 
 --
 -- You can find this element (if it exists) using 'search', or the
 -- 'Decidable' instance of @'Found' ('DeletedFrom' as)@.
+--
+-- @
+-- 'searchTC' :: SingI as => Sing bs -> 'Decision' ('Σ' k ('IsDelete' as bs))
+-- @
+--
+-- This will find you the single element you need to delete from @as@ to
+-- get @bs@, if it exists.
 --
 -- @since 0.1.2.0
 type DeletedFrom (as :: [k]) = (TyPP (Delete as) :: ParamPred [k] k)

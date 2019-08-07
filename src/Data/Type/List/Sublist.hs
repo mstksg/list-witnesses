@@ -32,12 +32,17 @@ module Data.Type.List.Sublist (
   , Suffix(..), IsSuffix, autoSuffix
   , dropRec, suffixLens, dropIndex, shiftIndex
   -- * Append
-  , Append(..), IsAppend, autoAppend
+  , Append(..), IsAppend, autoAppend, withAppend
   , prefixToAppend, suffixToAppend
   , appendToPrefix, appendToSuffix, splitAppend
   -- ** Application
   , splitRec, appendRec, splitRecIso
   , splitIndex
+  -- ** Witnesses
+  , appendWit, implyAppend
+  , appendWit', implyAppend'
+  , convertAppends
+  , AppendedTo
   -- * Interleave
   , Interleave(..), IsInterleave, autoInterleave
   , interleaveRec, unweaveRec, interleaveRecIso
@@ -50,12 +55,15 @@ import           Data.Profunctor
 import           Data.Singletons
 import           Data.Singletons.Decide
 import           Data.Singletons.Prelude.List
+import           Data.Singletons.Sigma
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
+import           Data.Type.Predicate.Param
 import           Data.Type.Universe
 import           Data.Vinyl.Core
-import           Lens.Micro hiding ((%~))
+import           Lens.Micro hiding            ((%~))
 import           Lens.Micro.Extras
+import qualified Data.Vinyl.TypeLevel         as V
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
 --
@@ -204,6 +212,21 @@ deriving instance Show (Append as bs cs)
 -- @since 0.1.2.0
 type IsAppend as bs = TyPred (Append as bs)
 
+-- | A parameterized predicate that you can use with 'select': With an
+-- @'AppendedTo' as@, you can give @bs@ and get @cs@ in return, where @cs@
+-- is the appending of @as@ and @bs@.
+--
+-- Run it with:
+--
+-- @
+-- 'selectTC' :: SingI as => Sing bs -> 'Σ' [k] ('IsAppend' as bs)
+-- @
+--
+-- 'select' for 'AppendedTo' is pretty much just 'withAppend'.
+--
+-- @since 0.1.2.0
+type AppendedTo as = TyPP (Append as)
+
 instance Auto (IsAppend '[] as) as where
     auto = AppZ
 
@@ -226,6 +249,9 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsAppend as bs) 
           Disproved v -> Disproved $ \case
             AppS _ -> v Refl
 
+instance SingI as => Decidable (Found (AppendedTo as))
+instance SingI as => Provable (Found (AppendedTo as)) where
+    prove ys = withAppend (sing @as) ys (:&:)
 
 -- | Automatically generate an 'Append' if @as@, @bs@ and @cs@ are known
 -- statically.
@@ -233,6 +259,54 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsAppend as bs) 
 -- @since 0.1.2.0
 autoAppend :: forall as bs cs. Auto (IsAppend as bs) cs => Append as bs cs
 autoAppend = auto @_ @(IsAppend as bs) @cs
+
+-- | Witness that @'Append' as bs cs@ implies @(as ++ bs) ~ cs@, using
+-- @++@ from "Data.Singletons.Prelude.List".
+--
+-- @since 0.1.2.0
+appendWit :: Append as bs cs -> (as ++ bs) :~: cs
+appendWit = \case
+    AppZ   -> Refl
+    AppS a -> case appendWit a of
+      Refl -> Refl
+
+-- | 'appendWit' stated as a 'Predicate' implication.
+--
+-- @since 0.1.2.0
+implyAppend :: IsAppend as bs --> EqualTo (as ++ bs)
+implyAppend _ = appendWit
+
+-- | Witness that @'Append' as bs cs@ implies @(as ++ bs) ~ cs@, using
+-- @++@ from "Data.Vinyl.TypeLevel".
+--
+-- @since 0.1.2.0
+appendWit' :: Append as bs cs -> (as V.++ bs) :~: cs
+appendWit' = \case
+    AppZ -> Refl
+    AppS a -> case appendWit' a of
+      Refl -> Refl
+
+-- | 'appendWit'' stated as a 'Predicate' implication.
+--
+-- @since 0.1.2.0
+implyAppend' :: IsAppend as bs --> EqualTo (as V.++ bs)
+implyAppend' _ = appendWit'
+
+-- | Given a witness @'Append' as bs cs@, prove that singleton's @++@ from
+-- "Data.Singletons.Prelude.List" is the same as vinyl's @++@
+-- "Data.Vinyl.TypeLevel".
+convertAppends :: Append as bs cs -> (as ++ bs) :~: (as V.++ bs)
+convertAppends a = case appendWit a of
+    Refl -> case appendWit' a of
+      Refl -> Refl
+
+-- | Given @as@ and @bs@, create an @'Append' as bs cs@ with, with @cs@
+-- existentially quantified
+withAppend :: Sing as -> Sing bs -> (forall cs. Sing cs -> Append as bs cs -> r) -> r
+withAppend = \case
+    SNil -> \ys f -> f ys AppZ
+    x `SCons` xs -> \ys f -> withAppend xs ys $ \zs a ->
+      f (x `SCons` zs) (AppS a)
 
 -- | Witness an isomorphism between 'Rec' and two parts that compose it.
 --

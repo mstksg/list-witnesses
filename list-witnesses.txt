@@ -599,7 +599,9 @@ unAppendWitV :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
 -- | Combine the powers of <a>AppendWit</a> and <a>AppendWitV</a> by
 --   matching on an <a>Append</a> to witness <tt>(as ++ bs) ~ cs</tt> for
 --   <i>both</i> <tt>++</tt> from <a>Data.Singletons.Prelude.List</a> and
---   <a>Data.Vinyl.TypeLevel</a>.
+--   <a>Data.Vinyl.TypeLevel</a>. This also witnesses that <tt>(as ++ bs) ~
+--   (as ++ bs)</tt> (for the two different <tt>++</tt>s) by transitive
+--   property.
 pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as ++ bs) ~ cs) => Append as bs cs
 
 -- | Given a witness <tt><a>Append</a> as bs cs</tt>, prove that

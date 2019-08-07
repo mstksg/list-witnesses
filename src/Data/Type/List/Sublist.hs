@@ -5,6 +5,7 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
@@ -12,6 +13,7 @@
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -- |
 -- Module      : Data.Type.List.Sublist
@@ -39,8 +41,14 @@ module Data.Type.List.Sublist (
   , splitRec, appendRec, splitRecIso
   , splitIndex
   -- ** Witnesses
-  , appendWit, implyAppend
-  , appendWit', implyAppend'
+  -- *** Singletons
+  , pattern AppendWit
+  , appendWit, implyAppend, unAppendWit
+  -- *** Vinyl
+  , pattern AppendWitV
+  , appendWitV, implyAppendV, unAppendWitV
+  -- *** Both
+  , pattern AppendWit'
   , convertAppends
   , AppendedTo
   -- * Interleave
@@ -273,6 +281,35 @@ appendWit = \case
     AppS a -> case appendWit a of
       Refl -> Refl
 
+-- | The inverse of 'appendWit': if we know @(as ++ bs) ~ cs@ (using @++@
+-- from "Data.Singletons.Prelude.List"), we can create an @'Append' as bs
+-- cs@ given structure witnesses 'Sing'.
+--
+-- @since 0.1.2.0
+unAppendWit
+    :: (as ++ bs) ~ cs
+    => Sing as
+    -> Sing bs
+    -> Append as bs cs
+unAppendWit = \case
+    SNil -> \_   -> AppZ
+    _ `SCons` xs -> AppS . unAppendWit xs
+
+-- | A useful pattern synonym for using 'Append' with @++@ from
+-- "Data.Singletons.Prelude.List".
+--
+-- As a /pattern/, this brings @(as ++ bs) ~ cs@ into the context whenever
+-- you use it to match on an @'Append' as bs cs@.
+--
+-- As an /expression/, this constructs an @'Append' as bs cs@ as long as
+-- you have @(as ++ bs) ~ cs@ in the context.
+--
+-- @since 0.1.2.0
+pattern AppendWit :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+pattern AppendWit <- (appendWit @as @bs @cs -> Refl)
+  where
+    AppendWit = unAppendWit @as @bs @cs sing sing
+
 -- | 'appendWit' stated as a 'Predicate' implication.
 --
 -- @since 0.1.2.0
@@ -283,24 +320,63 @@ implyAppend _ = appendWit
 -- @++@ from "Data.Vinyl.TypeLevel".
 --
 -- @since 0.1.2.0
-appendWit' :: Append as bs cs -> (as V.++ bs) :~: cs
-appendWit' = \case
+appendWitV :: Append as bs cs -> (as V.++ bs) :~: cs
+appendWitV = \case
     AppZ -> Refl
-    AppS a -> case appendWit' a of
+    AppS a -> case appendWitV a of
       Refl -> Refl
 
--- | 'appendWit'' stated as a 'Predicate' implication.
+-- | The inverse of 'appendWitV': if we know @(as ++ bs) ~ cs@ (using @++@
+-- from "Data.Vinyl.TypeLevel"), we can create an @'Append' as bs cs@ given
+-- structure witnesses 'Sing'.
 --
 -- @since 0.1.2.0
-implyAppend' :: IsAppend as bs --> EqualTo (as V.++ bs)
-implyAppend' _ = appendWit'
+unAppendWitV
+    :: (as V.++ bs) ~ cs
+    => Sing as
+    -> Sing bs
+    -> Append as bs cs
+unAppendWitV = \case
+    SNil -> \_   -> AppZ
+    _ `SCons` xs -> AppS . unAppendWitV xs
+
+-- | A useful pattern synonym for using 'Append' with @++@ from
+-- "Data.Vinyl.TypeLevel".
+--
+-- As a /pattern/, this brings @(as ++ bs) ~ cs@ into the context whenever
+-- you use it to match on an @'Append' as bs cs@.
+--
+-- As an /expression/, this constructs an @'Append' as bs cs@ as long as
+-- you have @(as ++ bs) ~ cs@ in the context.
+--
+-- @since 0.1.2.0
+pattern AppendWitV :: forall as bs cs. (SingI as, SingI bs) => (as V.++ bs) ~ cs => Append as bs cs
+pattern AppendWitV <- (appendWitV @as @bs @cs -> Refl)
+  where
+    AppendWitV = unAppendWitV @as @bs @cs sing sing
+
+-- | Combine the powers of 'AppendWit' and 'AppendWitV' by matching on an
+-- 'Append' to witness @(as ++ bs) ~ cs@ for /both/ @++@ from
+-- "Data.Singletons.Prelude.List" and "Data.Vinyl.TypeLevel".
+--
+-- @since 0.1.2.0
+pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as V.++ bs) ~ cs) => Append as bs cs
+pattern AppendWit' <- ((\a -> (a,a)) -> (AppendWit, AppendWitV))
+  where
+    AppendWit' = AppendWit
+
+-- | 'appendWitV' stated as a 'Predicate' implication.
+--
+-- @since 0.1.2.0
+implyAppendV :: IsAppend as bs --> EqualTo (as V.++ bs)
+implyAppendV _ = appendWitV
 
 -- | Given a witness @'Append' as bs cs@, prove that singleton's @++@ from
 -- "Data.Singletons.Prelude.List" is the same as vinyl's @++@
 -- "Data.Vinyl.TypeLevel".
 convertAppends :: Append as bs cs -> (as ++ bs) :~: (as V.++ bs)
 convertAppends a = case appendWit a of
-    Refl -> case appendWit' a of
+    Refl -> case appendWitV a of
       Refl -> Refl
 
 -- | Given @as@ and @bs@, create an @'Append' as bs cs@ with, with @cs@

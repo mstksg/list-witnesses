@@ -413,8 +413,8 @@ deleteRec = \case
 -- The number of 'SubS' in the index essentially indicates the index to
 -- edit at.
 --
--- This is similar to 'rlensC' from /vinyl/, but is built explicitly and
--- inductively, instead of using typeclass magic.
+-- This is similar to 'Data.Vinyl.Lens.rlensC' from /vinyl/, but is built
+-- explicitly and inductively, instead of using typeclass magic.
 recLens
     :: forall as bs x y f. ()
     => Substitute as bs x y
@@ -644,9 +644,9 @@ type family SuccSubstitutedIx b bs x y z (s :: SubstitutedIx bs x y z) :: Substi
     SuccSubstitutedIx b bs x y x ('GotSubbed i) = 'GotSubbed ('IS i)
     SuccSubstitutedIx b bs x y z ('NotSubbed i) = 'NotSubbed ('IS i)
 
--- | Type-level version of 'subsituteIndex'.  Because of how GADTs and type
--- families interact, the type-level lists and kinds of the insertion and
--- index must be provided.
+-- | Type-level version of 'substituteIndex'.  Because of how GADTs and
+-- type families interact, the type-level lists and kinds of the insertion
+-- and index must be provided.
 type family SubstituteIndex as bs x y z (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z where
     SubstituteIndex (z ': as) (y ': as) z y z 'SubZ     'IZ     = 'GotSubbed 'IZ
     SubstituteIndex (x ': as) (y ': as) x y z 'SubZ     ('IS i) = 'NotSubbed ('IS i)

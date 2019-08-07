@@ -47,6 +47,7 @@ module Data.Type.List.Sublist (
   , Interleave(..), IsInterleave, autoInterleave
   , interleaveRec, unweaveRec, interleaveRecIso
   , injectIndexL, injectIndexR, unweaveIndex
+  , interleavedIxes
   ) where
 
 import           Data.Bifunctor
@@ -59,10 +60,12 @@ import           Data.Singletons.Sigma
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
 import           Data.Type.Predicate.Param
-import           Data.Type.Universe
+import           Data.Type.Universe hiding    ((:+:)(..))
 import           Data.Vinyl.Core
+import           GHC.Generics                 ((:+:)(..))
 import           Lens.Micro hiding            ((%~))
 import           Lens.Micro.Extras
+import qualified Data.Vinyl.Recursive         as VR
 import qualified Data.Vinyl.TypeLevel         as V
 
 -- | A @'Prefix' as bs@ witnesses that @as@ is a prefix of @bs@.
@@ -573,6 +576,19 @@ unweaveRec = \case
       x :& xs -> first  (x :&) . unweaveRec m $ xs
     IntR m -> \case
       x :& xs -> second (x :&) . unweaveRec m $ xs
+
+-- | Turn an 'Interleave' into a 'Rec' of indices from either sublist.
+--
+-- Warning: O(n^2)
+--
+-- @since 0.1.2.0
+interleavedIxes :: Interleave as bs cs -> Rec (Index as :+: Index bs) cs
+interleavedIxes = \case
+    IntZ   -> RNil
+    IntL i -> L1 IZ :& VR.rmap (\case L1 i' -> L1 (IS i'); R1 j -> R1 j)
+                               (interleavedIxes i)
+    IntR j -> R1 IZ :& VR.rmap (\case L1 i -> L1 i; R1 j' -> R1 (IS j'))
+                               (interleavedIxes j)
 
 -- | Interleave an 'Index' on @as@ into a full index on @cs@, which is @as@
 -- interleaved with @bs@.

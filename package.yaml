@@ -39,3 +39,4 @@ library:
   - singletons
   - vinyl
   - microlens
+  - functor-products

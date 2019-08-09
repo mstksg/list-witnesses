@@ -65,11 +65,10 @@ import           Data.Singletons
 import           Data.Singletons.Decide
 import           Data.Singletons.Prelude.List
 import           Data.Singletons.Sigma
+import           Data.Type.Functor.Product
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
 import           Data.Type.Predicate.Param
-import           Data.Type.Universe hiding    ((:+:)(..))
-import           Data.Vinyl.Core
 import           GHC.Generics                 ((:+:)(..))
 import           Lens.Micro hiding            ((%~))
 import           Lens.Micro.Extras

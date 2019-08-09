@@ -73,13 +73,12 @@ import           Data.Singletons
 import           Data.Singletons.Decide
 import           Data.Singletons.Prelude
 import           Data.Singletons.Sigma
+import           Data.Type.Functor.Product
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
 import           Data.Type.Predicate.Param
-import           Data.Type.Universe
-import           Data.Vinyl.Core
-import           Lens.Micro hiding ((%~))
-import qualified Control.Category             as C
+import           Lens.Micro hiding         ((%~))
+import qualified Control.Category          as C
 
 -- | An @'Insert' as bs x@ is a witness that you can insert @x@ into some
 -- position in list @as@ to produce list @bs@.  It is essentially 'Delete'

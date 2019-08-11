@@ -43,7 +43,7 @@ extra-deps:
 - github: mstksg/decidable
   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
 - github: mstksg/functor-products
-  commit: 476b961bb007d7ee9aa0e60500c1473bc4a34e73
+  commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
 # - decidable-0.1.5.0
 
 # Override default flag values for local packages and extra-deps

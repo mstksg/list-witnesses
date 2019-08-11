@@ -69,6 +69,7 @@ import           Data.Type.Functor.Product
 import           Data.Type.Predicate
 import           Data.Type.Predicate.Auto
 import           Data.Type.Predicate.Param
+import           Data.Vinyl hiding            ((:~:))
 import           GHC.Generics                 ((:+:)(..))
 import           Lens.Micro hiding            ((%~))
 import           Lens.Micro.Extras
@@ -261,7 +262,7 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsAppend as bs) 
 
 instance SingI as => Decidable (Found (AppendedTo as))
 instance SingI as => Provable (Found (AppendedTo as)) where
-    prove ys = withAppend (sing @as) ys (:&:)
+    prove ys = withAppend (singProd (sing @as)) (singProd ys) $ \s x -> prodSing s :&: x
 
 -- | Automatically generate an 'Append' if @as@, @bs@ and @cs@ are known
 -- statically.
@@ -287,12 +288,12 @@ appendWit = \case
 -- @since 0.1.2.0
 unAppendWit
     :: (as ++ bs) ~ cs
-    => Sing as
-    -> Sing bs
+    => Rec f as
+    -> Rec f bs
     -> Append as bs cs
 unAppendWit = \case
-    SNil -> \_   -> AppZ
-    _ `SCons` xs -> AppS . unAppendWit xs
+    RNil    -> \_   -> AppZ
+    _ :& xs -> AppS . unAppendWit xs
 
 -- | A useful pattern synonym for using 'Append' with @++@ from
 -- "Data.Singletons.Prelude.List".
@@ -304,10 +305,10 @@ unAppendWit = \case
 -- you have @(as ++ bs) ~ cs@ in the context.
 --
 -- @since 0.1.2.0
-pattern AppendWit :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+pattern AppendWit :: forall as bs cs. (RecApplicative as, RecApplicative bs) => (as ++ bs) ~ cs => Append as bs cs
 pattern AppendWit <- (appendWit @as @bs @cs -> Refl)
   where
-    AppendWit = unAppendWit @as @bs @cs sing sing
+    AppendWit = unAppendWit @as @bs @cs pureShape pureShape
 {-# COMPLETE AppendWit #-}
 
 -- | 'appendWit' stated as a 'Predicate' implication.
@@ -333,12 +334,12 @@ appendWitV = \case
 -- @since 0.1.2.0
 unAppendWitV
     :: (as V.++ bs) ~ cs
-    => Sing as
-    -> Sing bs
+    => Rec f as
+    -> Rec f bs
     -> Append as bs cs
 unAppendWitV = \case
-    SNil -> \_   -> AppZ
-    _ `SCons` xs -> AppS . unAppendWitV xs
+    RNil     -> \_   -> AppZ
+    _ :& xs -> AppS . unAppendWitV xs
 
 -- | A useful pattern synonym for using 'Append' with @++@ from
 -- "Data.Vinyl.TypeLevel".
@@ -350,10 +351,10 @@ unAppendWitV = \case
 -- you have @(as ++ bs) ~ cs@ in the context.
 --
 -- @since 0.1.2.0
-pattern AppendWitV :: forall as bs cs. (SingI as, SingI bs) => (as V.++ bs) ~ cs => Append as bs cs
+pattern AppendWitV :: forall as bs cs. (RecApplicative as, RecApplicative bs) => (as V.++ bs) ~ cs => Append as bs cs
 pattern AppendWitV <- (appendWitV @as @bs @cs -> Refl)
   where
-    AppendWitV = unAppendWitV @as @bs @cs sing sing
+    AppendWitV = unAppendWitV @as @bs @cs pureShape pureShape
 {-# COMPLETE AppendWitV #-}
 
 -- | Combine the powers of 'AppendWit' and 'AppendWitV' by matching on an
@@ -363,7 +364,7 @@ pattern AppendWitV <- (appendWitV @as @bs @cs -> Refl)
 -- by transitive property.
 --
 -- @since 0.1.2.0
-pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as V.++ bs) ~ cs) => Append as bs cs
+pattern AppendWit' :: forall as bs cs. (RecApplicative as, RecApplicative bs) => ((as ++ bs) ~ cs, (as V.++ bs) ~ cs) => Append as bs cs
 pattern AppendWit' <- ((\a -> (a,a)) -> (AppendWit, AppendWitV))
   where
     AppendWit' = AppendWit
@@ -385,11 +386,11 @@ convertAppends a = case appendWit a of
 
 -- | Given @as@ and @bs@, create an @'Append' as bs cs@ with, with @cs@
 -- existentially quantified
-withAppend :: Sing as -> Sing bs -> (forall cs. Sing cs -> Append as bs cs -> r) -> r
+withAppend :: Rec f as -> Rec f bs -> (forall cs. Rec f cs -> Append as bs cs -> r) -> r
 withAppend = \case
-    SNil -> \ys f -> f ys AppZ
-    x `SCons` xs -> \ys f -> withAppend xs ys $ \zs a ->
-      f (x `SCons` zs) (AppS a)
+    RNil -> \ys f -> f ys AppZ
+    x :& xs -> \ys f -> withAppend xs ys $ \zs a ->
+      f (x :& zs) (AppS a)
 
 -- | Witness an isomorphism between 'Rec' and two parts that compose it.
 --

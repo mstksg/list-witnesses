@@ -19,19 +19,19 @@ packages:
   original:
     url: https://github.com/mstksg/decidable/archive/81e7469efdd8d1cf1f15fe4204a0b41bf3005377.tar.gz
 - completed:
-    size: 8366
-    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
+    size: 8627
+    url: https://github.com/mstksg/functor-products/archive/fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f.tar.gz
     cabal-file:
       size: 1140
       sha256: de5ef87f6154dfdb5e8ca9d609e12959e93b28c2467a0e655dea1e9f67b33818
     name: functor-products
     version: 0.1.0.0
-    sha256: 6d271ac81804a3cca1eb4f92acbb93092bce292809d62061340268fe4d09976e
+    sha256: 57e19263b5b0d3188e8e06a6fc82169018274c3c82ac1be6a06baa318f26b7a3
     pantry-tree:
       size: 477
-      sha256: 479ea6650a95cb50e909ef1df9534228a255a1b49b1b167193eac1b3fcbaedc8
+      sha256: f72f40570783b47c396a0bd8b47f4f032cb227b1d5fb97748accf6bb147730a9
   original:
-    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
+    url: https://github.com/mstksg/functor-products/archive/fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f.tar.gz
 snapshots:
 - completed:
     size: 513872

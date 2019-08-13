@@ -4,7 +4,7 @@ Changelog
 Version 0.1.2.0
 ---------------
 
-*August 7, 2019*
+*August 12, 2019*
 
 <https://github.com/mstksg/list-witnesses/releases/tag/v0.1.2.0>
 

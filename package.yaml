@@ -34,7 +34,7 @@ library:
   source-dirs: src
   dependencies:
   - base >= 4.7 && < 5
-  - decidable >= 0.1.5
+  - decidable >= 0.2
   - profunctors
   - singletons
   - vinyl

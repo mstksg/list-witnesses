@@ -40,10 +40,12 @@ packages:
 # (e.g., acme-missiles-0.3)
 
 extra-deps:
-- github: mstksg/decidable
-  commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
-- github: mstksg/functor-products
-  commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
+- functor-products-0.1.0.0
+- decidable-0.2.0.0
+# - github: mstksg/decidable
+#   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
+# - github: mstksg/functor-products
+#   commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
 # - decidable-0.1.5.0
 
 # Override default flag values for local packages and extra-deps

@@ -497,7 +497,7 @@ autoAppend :: forall as bs cs. Auto (IsAppend as bs) cs => Append as bs cs
 
 -- | Given <tt>as</tt> and <tt>bs</tt>, create an <tt><a>Append</a> as bs
 --   cs</tt> with, with <tt>cs</tt> existentially quantified
-withAppend :: Sing as -> Sing bs -> (forall cs. Sing cs -> Append as bs cs -> r) -> r
+withAppend :: Rec f as -> Rec f bs -> (forall cs. Rec f cs -> Append as bs cs -> r) -> r
 
 -- | Convert a <a>Prefix</a> to an <a>Append</a>, with an existential
 --   <tt>bs</tt>.
@@ -558,7 +558,7 @@ splitIndex :: Append as bs cs -> Index cs x -> Either (Index as x) (Index bs x)
 --   
 --   As an <i>expression</i>, this constructs an <tt><a>Append</a> as bs
 --   cs</tt> as long as you have <tt>(as ++ bs) ~ cs</tt> in the context.
-pattern AppendWit :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+pattern AppendWit :: forall as bs cs. (RecApplicative as, RecApplicative bs) => (as ++ bs) ~ cs => Append as bs cs
 
 -- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
 --   cs</tt>, using <tt>++</tt> from <a>Data.Singletons.Prelude.List</a>.
@@ -571,7 +571,7 @@ implyAppend :: IsAppend as bs --> EqualTo (as ++ bs)
 --   (using <tt>++</tt> from <a>Data.Singletons.Prelude.List</a>), we can
 --   create an <tt><a>Append</a> as bs cs</tt> given structure witnesses
 --   <a>Sing</a>.
-unAppendWit :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
+unAppendWit :: (as ++ bs) ~ cs => Rec f as -> Rec f bs -> Append as bs cs
 
 -- | A useful pattern synonym for using <a>Append</a> with <tt>++</tt> from
 --   <a>Data.Vinyl.TypeLevel</a>.
@@ -582,7 +582,7 @@ unAppendWit :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
 --   
 --   As an <i>expression</i>, this constructs an <tt><a>Append</a> as bs
 --   cs</tt> as long as you have <tt>(as ++ bs) ~ cs</tt> in the context.
-pattern AppendWitV :: forall as bs cs. (SingI as, SingI bs) => (as ++ bs) ~ cs => Append as bs cs
+pattern AppendWitV :: forall as bs cs. (RecApplicative as, RecApplicative bs) => (as ++ bs) ~ cs => Append as bs cs
 
 -- | Witness that <tt><a>Append</a> as bs cs</tt> implies <tt>(as ++ bs) ~
 --   cs</tt>, using <tt>++</tt> from <a>Data.Vinyl.TypeLevel</a>.
@@ -594,7 +594,7 @@ implyAppendV :: IsAppend as bs --> EqualTo (as ++ bs)
 -- | The inverse of <a>appendWitV</a>: if we know <tt>(as ++ bs) ~ cs</tt>
 --   (using <tt>++</tt> from <a>Data.Vinyl.TypeLevel</a>), we can create an
 --   <tt><a>Append</a> as bs cs</tt> given structure witnesses <a>Sing</a>.
-unAppendWitV :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
+unAppendWitV :: (as ++ bs) ~ cs => Rec f as -> Rec f bs -> Append as bs cs
 
 -- | Combine the powers of <a>AppendWit</a> and <a>AppendWitV</a> by
 --   matching on an <a>Append</a> to witness <tt>(as ++ bs) ~ cs</tt> for
@@ -602,7 +602,7 @@ unAppendWitV :: (as ++ bs) ~ cs => Sing as -> Sing bs -> Append as bs cs
 --   <a>Data.Vinyl.TypeLevel</a>. This also witnesses that <tt>(as ++ bs) ~
 --   (as ++ bs)</tt> (for the two different <tt>++</tt>s) by transitive
 --   property.
-pattern AppendWit' :: forall as bs cs. (SingI as, SingI bs) => ((as ++ bs) ~ cs, (as ++ bs) ~ cs) => Append as bs cs
+pattern AppendWit' :: forall as bs cs. (RecApplicative as, RecApplicative bs) => ((as ++ bs) ~ cs, (as ++ bs) ~ cs) => Append as bs cs
 
 -- | Given a witness <tt><a>Append</a> as bs cs</tt>, prove that
 --   singleton's <tt>++</tt> from <a>Data.Singletons.Prelude.List</a> is

@@ -1,6 +1,16 @@
 Changelog
 =========
 
+Version 0.1.3.0
+---------------
+
+*August 23, 2019*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.3.0>
+
+*   Add `Subset` and associated methods
+*   `interleaveShapes`, `swapInterleave`, `appendShape`, `prefixShape`
+
 Version 0.1.2.0
 ---------------
 

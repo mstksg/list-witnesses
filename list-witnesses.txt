@@ -14,7 +14,7 @@
 --   suffixes, and two-way splits of type-level lists.</li>
 --   </ul>
 @package list-witnesses
-@version 0.1.2.0
+@version 0.1.3.0
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -421,6 +421,9 @@ takeIndex :: Prefix as bs -> Index bs x -> Maybe (Index as x)
 --   index. This is the inverse of <a>takeIndex</a>.
 weakenIndex :: Prefix as bs -> Index as x -> Index bs x
 
+-- | Get the <a>Shape</a> associated with a <a>Prefix</a>.
+prefixShape :: Prefix as bs -> Shape [] as
+
 -- | A <tt><a>Suffix</a> as bs</tt> witnesses that <tt>as</tt> is a suffix
 --   of <tt>bs</tt>.
 --   
@@ -517,6 +520,9 @@ appendToSuffix :: Append as bs cs -> Suffix bs cs
 --   Basically <a>appendToPrefix</a> and <a>appendToSuffix</a> at the same
 --   time.
 splitAppend :: Append as bs cs -> (Prefix as cs, Suffix bs cs)
+
+-- | Get the <a>Shape</a> associated with an <tt>Append'</tt>s prefix.
+appendShape :: Append as bs cs -> Shape [] as
 
 -- | Split a <a>Rec</a> into a prefix and suffix. Basically <a>takeRec</a>
 --   and <a>dropRec</a> combined.
@@ -625,9 +631,9 @@ convertAppends :: Append as bs cs -> (as ++ bs) :~: (as ++ bs)
 type AppendedTo as = TyPP (Append as)
 
 -- | A <tt><a>Interleave</a> as bs cs</tt> witnesses that <tt>cs</tt> is
---   <tt>as</tt> interleaved with <tt>bs. It is constructed by selectively
---   zipping items from </tt>as<tt> and </tt>bs@ together, like mergesort
---   or riffle shuffle.
+--   <tt>as</tt> interleaved with <tt>bs</tt>. It is constructed by
+--   selectively zipping items from <tt>as</tt> and <tt>bs</tt> together,
+--   like mergesort or riffle shuffle.
 --   
 --   You construct an <a>Interleave</a> from <tt>as</tt> and <tt>bs</tt> by
 --   picking "which item" from <tt>as</tt> and <tt>bs</tt> to add to
@@ -695,10 +701,109 @@ unweaveIndex :: Interleave as bs cs -> Index cs c -> Either (Index as c) (Index 
 --   
 --   Warning: O(n^2)
 interleavedIxes :: Interleave as bs cs -> Rec (Index as :+: Index bs) cs
+
+-- | Swap the two halves of an <a>Interleave</a>.
+swapInterleave :: Interleave as bs cs -> Interleave bs as cs
+
+-- | Get the <a>Shape</a>s associated with an <a>Interleave</a>.
+interleaveShapes :: Interleave as bs cs -> (Shape [] as, Shape [] bs, Shape [] cs)
+
+-- | A <tt><a>Subset</a> as bs</tt> witnesses that <tt>as</tt> is some
+--   subset of <tt>bs</tt>, with items in the same order. It is constructed
+--   by specifying what item to include or exclude in <tt>bs</tt> from
+--   <tt>as</tt>. It is essentially <a>Interleave</a>, but without one of
+--   the two initial parameters.
+--   
+--   You construct an <a>Subset</a> from <tt>cs</tt> by picking "which
+--   item" from <tt>bs</tt> to add to <tt>as</tt>.
+--   
+--   Some examples:
+--   
+--   <pre>
+--   SubsetNo  (SubsetNo  (SubsetNo  SubsetNil)) :: Subset '[]      '[1,2,3]
+--   SubsetYes (SubsetNo  (SubsetNo  SubsetNil)) :: Subset '[1]     '[1,2,3]
+--   SubsetNo  (SubsetNo  (SubsetYes SubsetNil)) :: Subset '[3]     '[1,2,3]
+--   SubsetYes (SubsetNo  (SubsetYes SubsetNil)) :: Subset '[1,3]   '[1,2,3]
+--   SubsetYes (SubsetYes (SubsetYes SubsetNil)) :: Subset '[1,2,3] '[1,2,3]
+--   </pre>
+data Subset :: [k] -> [k] -> Type
+[SubsetNil] :: Subset '[] '[]
+[SubsetNo] :: Subset as bs -> Subset as (b : bs)
+[SubsetYes] :: Subset as bs -> Subset (a : as) (a : bs)
+
+-- | A type-level predicate that a given list is a "superset" of
+--   <tt>as</tt>, in correct order
+type IsSubset as = TyPred (Subset as)
+
+-- | Automatically generate an <a>Subset</a> if <tt>as</tt> and <tt>bs</tt>
+--   are known statically.
+autoSubset :: forall as bs. Auto (IsSubset as) bs => Subset as bs
+
+-- | <tt>as</tt> is a subset of <tt>cs</tt>; this function recovers
+--   <tt>bs</tt>, the subset of <tt>cs</tt> that is not <tt>as</tt>.
+subsetComplement :: Subset as cs -> (forall bs. Subset bs cs -> r) -> r
+
+-- | Drop the left side of an <a>Interleave</a>, leaving only the right
+--   side.
+interleaveRToSubset :: Interleave as bs cs -> Subset bs cs
+
+-- | Drop the right side of an <a>Interleave</a>, leaving only the left
+--   side.
+interleaveLToSubset :: Interleave as bs cs -> Subset as cs
+
+-- | Convert a <a>Subset</a> into an left <a>Interleave</a>, recovering the
+--   dropped items.
+subsetToInterleaveLeft :: Subset as cs -> (forall bs. Interleave as bs cs -> r) -> r
+
+-- | Convert a <a>Subset</a> into an right <a>Interleave</a>, recovering
+--   the dropped items.
+subsetToInterleaveRight :: Subset bs cs -> (forall as. Interleave as bs cs -> r) -> r
+
+-- | A lens into a subset of a record, indicated by a <a>Subset</a>.
+subsetRec :: Subset as bs -> Lens' (Rec f bs) (Rec f as)
+
+-- | Take a subset out of a <a>Rec</a>. An alias for <tt><a>view</a>
+--   (<a>subsetRec</a> s)</tt>.
+getSubset :: Subset as bs -> Rec f bs -> Rec f as
+
+-- | Get the <a>Shape</a>s associated with a <a>Subset</a>.
+subsetShapes :: Subset as bs -> (Shape [] as, Shape [] bs)
+
+-- | Get all of the indices of all the items in a <a>Subset</a>.
+subsetIxes :: Subset as bs -> Rec (Index bs) as
+
+-- | Because <tt>as</tt> is a subset of <tt>bs</tt>, an index into
+--   <tt>as</tt> should also be an index into <tt>bs</tt>. This performs
+--   that transformation.
+--   
+--   This is like a version of <a>injectIndexL</a> or <a>injectIndexR</a>,
+--   for <a>Subset</a>.
+weakenSubsetIndex :: Subset as bs -> Index as a -> Index bs a
+
+-- | Because <tt>as</tt> is a subset of <tt>bs</tt>, we can
+--   <i>sometimes</i> transform an index into <tt>bs</tt> into an index
+--   into <tt>as</tt>. This performs that transformation. If it succeeds,
+--   it means that the index in <tt>bs</tt> also exists in <tt>as</tt>;
+--   otherwise, it means that the index in <tt>bs</tt> was excluded from
+--   <tt>as</tt>.
+--   
+--   Note that if the index into <tt>a</tt> was excluded from <tt>as</tt>,
+--   it doesn't necessarily mean that there is no <tt>a</tt> in <tt>bs</tt>
+--   --- <tt>bs</tt> could contain a duplicate that was included into
+--   <tt>as</tt>. This converts into an index to the exact same item
+--   (positionlly) in the list, if it is possible.
+--   
+--   This is like a version of <a>unweaveIndex</a>, but for <a>Subset</a>.
+strengthenSubsetIndex :: Subset as bs -> Index bs a -> Maybe (Index as a)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Prefix as bs)
 instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Suffix as bs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Append as bs cs)
 instance forall k (as :: [k]) (bs :: [k]) (cs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Interleave as bs cs)
+instance forall k (as :: [k]) (bs :: [k]). GHC.Show.Show (Data.Type.List.Sublist.Subset as bs)
+instance Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSubset '[]) '[]
+instance forall a (as :: [a]) (bs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSubset as) bs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSubset as) (b : bs)
+instance forall a1 (as :: [a1]) (bs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSubset as) bs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSubset (a2 : as)) (a2 : bs)
+instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsSubset as)
 instance Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave '[] '[]) '[]
 instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave (a2 : as) bs) (a2 : cs)
 instance forall a (as :: [a]) (bs :: [a]) (cs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsInterleave as (b : bs)) (b : cs)

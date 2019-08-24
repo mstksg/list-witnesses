@@ -14,7 +14,7 @@
 --   suffixes, and two-way splits of type-level lists.</li>
 --   </ul>
 @package list-witnesses
-@version 0.1.3.0
+@version 0.1.3.1
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -753,11 +753,11 @@ interleaveLToSubset :: Interleave as bs cs -> Subset as cs
 
 -- | Convert a <a>Subset</a> into an left <a>Interleave</a>, recovering the
 --   dropped items.
-subsetToInterleaveLeft :: Subset as cs -> (forall bs. Interleave as bs cs -> r) -> r
+subsetToInterleaveL :: Subset as cs -> (forall bs. Interleave as bs cs -> r) -> r
 
 -- | Convert a <a>Subset</a> into an right <a>Interleave</a>, recovering
 --   the dropped items.
-subsetToInterleaveRight :: Subset bs cs -> (forall as. Interleave as bs cs -> r) -> r
+subsetToInterleaveR :: Subset bs cs -> (forall as. Interleave as bs cs -> r) -> r
 
 -- | A lens into a subset of a record, indicated by a <a>Subset</a>.
 subsetRec :: Subset as bs -> Lens' (Rec f bs) (Rec f as)

@@ -63,7 +63,7 @@ module Data.Type.List.Sublist (
   , Subset(..), IsSubset, autoSubset
   , subsetComplement
   , interleaveRToSubset, interleaveLToSubset
-  , subsetToInterleaveLeft, subsetToInterleaveRight
+  , subsetToInterleaveL, subsetToInterleaveR
   , subsetRec, getSubset
   , subsetShapes
   , subsetIxes
@@ -830,25 +830,25 @@ interleaveRToSubset = \case
 
 -- | Convert a 'Subset' into an left 'Interleave', recovering the dropped
 -- items.
-subsetToInterleaveLeft
+subsetToInterleaveL
     :: Subset as cs
     -> (forall bs. Interleave as bs cs -> r)
     -> r
-subsetToInterleaveLeft = \case
+subsetToInterleaveL = \case
     SubsetNil   -> \f -> f IntZ
-    SubsetNo  s -> \f -> subsetToInterleaveLeft s (f . IntR)
-    SubsetYes s -> \f -> subsetToInterleaveLeft s (f . IntL)
+    SubsetNo  s -> \f -> subsetToInterleaveL s (f . IntR)
+    SubsetYes s -> \f -> subsetToInterleaveL s (f . IntL)
 
 -- | Convert a 'Subset' into an right 'Interleave', recovering the dropped
 -- items.
-subsetToInterleaveRight
+subsetToInterleaveR
     :: Subset bs cs
     -> (forall as. Interleave as bs cs -> r)
     -> r
-subsetToInterleaveRight = \case
+subsetToInterleaveR = \case
     SubsetNil   -> \f -> f IntZ
-    SubsetNo  s -> \f -> subsetToInterleaveRight s (f . IntL)
-    SubsetYes s -> \f -> subsetToInterleaveRight s (f . IntR)
+    SubsetNo  s -> \f -> subsetToInterleaveR s (f . IntL)
+    SubsetYes s -> \f -> subsetToInterleaveR s (f . IntR)
 
 -- | @as@ is a subset of @cs@; this function recovers @bs@, the subset of
 -- @cs@ that is not @as@.

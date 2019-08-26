@@ -14,7 +14,7 @@
 --   suffixes, and two-way splits of type-level lists.</li>
 --   </ul>
 @package list-witnesses
-@version 0.1.3.1
+@version 0.1.3.2
 
 
 -- | Witnesses regarding single-item edits of lists.
@@ -40,6 +40,14 @@ data Insert :: [k] -> [k] -> k -> Type
 
 -- | Automatically generate an <a>Insert</a> if <tt>as</tt>, <tt>bs</tt>
 --   and <tt>x</tt> are known statically.
+--   
+--   Prefers the earlier insertion if there is an ambiguity.
+--   
+--   <pre>
+--   InsS InsZ        :: Insert '[1,2] '[1,2,2] 2
+--   InsS (InsS InsZ) :: Insert '[1,2] '[1,2,2] 2
+--   autoInsert <tt>'[1,2] </tt>'[1,2,2] @2 == InsS InsZ
+--   </pre>
 autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
 
 -- | A <tt><a>Delete</a> as bs x</tt> is a witness that you can delete item
@@ -61,6 +69,14 @@ data Delete :: [k] -> [k] -> k -> Type
 
 -- | Automatically generate an <a>Delete</a> if <tt>as</tt>, <tt>bs</tt>
 --   and <tt>x</tt> are known statically.
+--   
+--   Prefers the earlier deletion if there is an ambiguity.
+--   
+--   <pre>
+--   DelS DelZ        :: Delete '[1,2,2] '[1,2] 2
+--   DelS (DelS DelZ) :: Delete '[1,2,2] '[1,2] 2
+--   autoDelete <tt>'[1,2,2] </tt>'[1,2] @2 == DelS DelZ
+--   </pre>
 autoDelete :: forall as bs x. Auto (IsDelete as bs) x => Delete as bs x
 
 -- | Flip an insertion.
@@ -86,6 +102,14 @@ data Substitute :: [k] -> [k] -> k -> k -> Type
 
 -- | Automatically generate an <a>Substitute</a> if <tt>as</tt>,
 --   <tt>bs</tt>, <tt>x</tt>, and <tt>y</tt> are known statically.
+--   
+--   Prefers the "earlier" substitution if there is an ambiguity
+--   
+--   <pre>
+--   SubZ      :: Substitute '[1,1] '[1,1] 1 1
+--   SubS SubZ :: Substitute '[1,1] '[1,1] 1 1
+--   autoSubstitute <tt>'[1,1] </tt>'[1,1] <tt>1 </tt>1 == SubZ
+--   </pre>
 autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute as bs x y
 
 -- | Flip a substitution
@@ -168,8 +192,8 @@ data SSubstitute as bs x y :: Substitute as bs x y -> Type
 --   <tt>as</tt> into <tt>bs</tt> through successive insertions, deletions,
 --   and substitutions.
 --   
---   TODO: implement Wagner-Fischer to minimize find a minimal edit
---   distance
+--   TODO: implement Wagner-Fischer or something similar to minimize find a
+--   minimal edit distance
 data Edit :: [k] -> [k] -> Type
 [ENil] :: Edit as as
 [EIns] :: Insert bs cs x -> Edit as bs -> Edit as cs
@@ -360,6 +384,7 @@ instance forall k (bs :: [k]) (x :: k) (y :: k). GHC.Show.Show (Data.Type.List.E
 instance Control.Category.Category Data.Type.List.Edit.Edit
 instance forall k (x :: k) (as :: [k]) (y :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (x : as) (y : as) x) y
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (c :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute as bs x) y => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (c : as) (c : bs) x) y
+instance forall k (x :: k) (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsSubstitute (x : as) (x : as) x) x
 instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.Predicate.Param.Found (Data.Type.List.Edit.DeletedFrom as))
 instance forall k (x :: k) (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (x : as) as) x
 instance forall k (as :: [k]) (bs :: [k]) (x :: k) (a :: k). Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete as bs) x => Data.Type.Predicate.Auto.Auto (Data.Type.List.Edit.IsDelete (a : as) (a : bs)) x
@@ -656,8 +681,17 @@ data Interleave :: [k] -> [k] -> [k] -> Type
 --   <tt>as</tt> and <tt>bs</tt>.
 type IsInterleave as bs = TyPred (Interleave as bs)
 
--- | Automatically generate an <a>Interleave</a> if <tt>as</tt> and
---   <tt>bs</tt> are known statically.
+-- | Automatically generate an <a>Interleave</a> if <tt>as</tt>,
+--   <tt>bs</tt>, and <tt>cs</tt> are known statically.
+--   
+--   Prefers the left side if there is an ambiguity:
+--   
+--   <pre>
+--   IntL (IntR (IntR IntZ) :: Interleave '[1] '[1,2] '[1,1,2]
+--   IntR (IntL (IntR IntZ) :: Interleave '[1] '[1,2] '[1,1,2]
+--   
+--   autoInterleave <tt>'[1] </tt>'[1,2] '[1,1,2] == IntL (IntR (IntR IntZ)
+--   </pre>
 autoInterleave :: forall as bs cs. Auto (IsInterleave as bs) cs => Interleave as bs cs
 
 -- | Given two <a>Rec</a>s, interleave the two to create a combined
@@ -813,7 +847,8 @@ instance forall k (as :: [k]). Data.Singletons.Internal.SingI as => Data.Type.Pr
 instance forall k (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend '[] as) as
 instance forall a1 (as :: [a1]) (bs :: [a1]) (cs :: [a1]) (a2 :: a1). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend as bs) cs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsAppend (a2 : as) bs) (a2 : cs)
 instance forall k (as :: [k]) (bs :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as, Data.Singletons.Internal.SingI bs) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsAppend as bs)
-instance forall k (as :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) as
+instance Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix '[]) '[]
+instance forall a1 (a2 :: a1) (as :: [a1]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix (a2 : as)) (a2 : as)
 instance forall a (as :: [a]) (bs :: [a]) (b :: a). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) bs => Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsSuffix as) (b : bs)
 instance forall k (as :: [k]). (Data.Singletons.Decide.SDecide k, Data.Singletons.Internal.SingI as) => Data.Type.Predicate.Decidable (Data.Type.List.Sublist.IsSuffix as)
 instance forall k (bs :: [k]). Data.Type.Predicate.Auto.Auto (Data.Type.List.Sublist.IsPrefix '[]) bs

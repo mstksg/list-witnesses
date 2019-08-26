@@ -187,10 +187,13 @@ deriving instance Show (Suffix as bs)
 -- @since 0.1.2.0
 type IsSuffix as = TyPred (Suffix as)
 
-instance Auto (IsSuffix as) as where
+instance Auto (IsSuffix '[]) '[] where
     auto = SufZ
 
-instance Auto (IsSuffix as) bs => Auto (IsSuffix as) (b ': bs) where
+instance {-# OVERLAPPABLE #-} Auto (IsSuffix (a ': as)) (a ': as) where
+    auto = SufZ
+
+instance {-# OVERLAPPABLE #-} Auto (IsSuffix as) bs => Auto (IsSuffix as) (b ': bs) where
     auto = SufS (auto @_ @(IsSuffix as) @bs)
 
 instance (SDecide k, SingI (as :: [k])) => Decidable (IsSuffix as) where
@@ -603,10 +606,11 @@ type IsInterleave as bs = TyPred (Interleave as bs)
 instance Auto (IsInterleave '[] '[]) '[] where
     auto = IntZ
 
+-- | Prefers 'IntL' if there is an ambiguity.
 instance Auto (IsInterleave as bs) cs => Auto (IsInterleave (a ': as) bs) (a ': cs) where
     auto = IntL (auto @_ @(IsInterleave as bs) @cs)
 
-instance Auto (IsInterleave as bs) cs => Auto (IsInterleave as (b ': bs)) (b ': cs) where
+instance {-# INCOHERENT #-} Auto (IsInterleave as bs) cs => Auto (IsInterleave as (b ': bs)) (b ': cs) where
     auto = IntR (auto @_ @(IsInterleave as bs) @cs)
 
 instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInterleave as bs) where
@@ -658,8 +662,17 @@ instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInterleave as 
                 IntL _ -> v Refl
                 IntR _ -> u Refl
 
--- | Automatically generate an 'Interleave' if @as@ and @bs@ are known
--- statically.
+-- | Automatically generate an 'Interleave' if @as@, @bs@, and @cs@ are
+-- known statically.
+--
+-- Prefers the left side if there is an ambiguity:
+--
+-- @
+-- IntL (IntR (IntR IntZ) :: Interleave '[1] '[1,2] '[1,1,2]
+-- IntR (IntL (IntR IntZ) :: Interleave '[1] '[1,2] '[1,1,2]
+--
+-- autoInterleave @'[1] @'[1,2] '[1,1,2] == IntL (IntR (IntR IntZ)
+-- @
 --
 -- @since 0.1.2.0
 autoInterleave :: forall as bs cs. Auto (IsInterleave as bs) cs => Interleave as bs cs
@@ -873,10 +886,10 @@ type IsSubset as = TyPred (Subset as)
 instance Auto (IsSubset '[]) '[] where
     auto = SubsetNil
 
-instance Auto (IsSubset as) bs => Auto (IsSubset as) (b ': bs) where
+instance {-# OVERLAPPING #-} Auto (IsSubset as) bs => Auto (IsSubset as) (b ': bs) where
     auto = SubsetNo (auto @_ @(IsSubset as) @bs)
 
-instance Auto (IsSubset as) bs => Auto (IsSubset (a ': as)) (a ': bs) where
+instance {-# OVERLAPPING #-} Auto (IsSubset as) bs => Auto (IsSubset (a ': as)) (a ': bs) where
     auto = SubsetYes (auto @_ @(IsSubset as) @bs)
 
 instance (SDecide k, SingI (as :: [k])) => Decidable (IsSubset as) where

@@ -1,6 +1,17 @@
 Changelog
 =========
 
+Version 0.1.3.2
+---------------
+
+*August 25, 2019*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.3.2>
+
+*   Fixed overlapping instance issues resulting from ambiguities in `Auto`
+    instances for `Insert`, `Delete`, `Substitute`, `Suffix`, `Interleave`, and
+    `Subset`.
+
 Version 0.1.3.1
 ---------------
 

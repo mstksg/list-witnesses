@@ -106,10 +106,11 @@ deriving instance Show (Insert as bs x)
 -- @since 0.1.2.0
 type IsInsert as bs = TyPred (Insert as bs)
 
+-- | Prefers the "earlier" insert if there is ambiguity
 instance Auto (IsInsert as (x ': as)) x where
     auto = InsZ
 
-instance Auto (IsInsert as bs) x => Auto (IsInsert (a ': as) (a ': bs)) x where
+instance {-# INCOHERENT #-} Auto (IsInsert as bs) x => Auto (IsInsert (a ': as) (a ': bs)) x where
     auto = InsS (auto @_ @(IsInsert as bs) @x)
 
 instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsInsert as bs) where
@@ -184,6 +185,14 @@ instance (SDecide k, SingI (as :: [k])) => Decidable (Found (InsertedInto as)) w
 -- | Automatically generate an 'Insert' if @as@, @bs@ and @x@ are known
 -- statically.
 --
+-- Prefers the earlier insertion if there is an ambiguity.
+--
+-- @
+-- InsS InsZ        :: Insert '[1,2] '[1,2,2] 2
+-- InsS (InsS InsZ) :: Insert '[1,2] '[1,2,2] 2
+-- autoInsert @'[1,2] @'[1,2,2] @2 == InsS InsZ
+-- @
+--
 -- @since 0.1.2.0
 autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
 autoInsert = auto @_ @(IsInsert as bs) @x
@@ -225,10 +234,11 @@ deriving instance Show (Delete as bs x)
 -- @since 0.1.2.0
 type IsDelete as bs = TyPred (Delete as bs)
 
+-- | Prefers the "earlier" delete if there is ambiguity
 instance Auto (IsDelete (x ': as) as) x where
     auto = DelZ
 
-instance Auto (IsDelete as bs) x => Auto (IsDelete (a ': as) (a ': bs)) x where
+instance {-# INCOHERENT #-} Auto (IsDelete as bs) x => Auto (IsDelete (a ': as) (a ': bs)) x where
     auto = DelS (auto @_ @(IsDelete as bs) @x)
 
 instance (SDecide k, SingI (as :: [k]), SingI bs) => Decidable (IsDelete as bs) where
@@ -262,6 +272,14 @@ instance (SDecide k, SingI (as :: [k])) => Decidable (Found (DeletedFrom as)) wh
 
 -- | Automatically generate an 'Delete' if @as@, @bs@ and @x@ are known
 -- statically.
+--
+-- Prefers the earlier deletion if there is an ambiguity.
+--
+-- @
+-- DelS DelZ        :: Delete '[1,2,2] '[1,2] 2
+-- DelS (DelS DelZ) :: Delete '[1,2,2] '[1,2] 2
+-- autoDelete @'[1,2,2] @'[1,2] @2 == DelS DelZ
+-- @
 --
 -- @since 0.1.2.0
 autoDelete :: forall as bs x. Auto (IsDelete as bs) x => Delete as bs x
@@ -306,16 +324,27 @@ type IsSubstitute as bs x = TyPred (Substitute as bs x)
 instance Auto (IsSubstitute (x ': as) (y ': as) x) y where
     auto = SubZ
 
+-- | Prefers the earlier subsitution if there is ambiguity.
 instance Auto (IsSubstitute as bs x) y => Auto (IsSubstitute (c ': as) (c ': bs) x) y where
     auto = SubS (auto @_ @(IsSubstitute as bs x) @y)
+
+instance {-# INCOHERENT #-} Auto (IsSubstitute (x ': as) (x ': as) x) x where
+    auto = SubZ
 
 -- | Automatically generate an 'Substitute' if @as@, @bs@, @x@, and @y@ are
 -- known statically.
 --
+-- Prefers the "earlier" substitution if there is an ambiguity
+--
+-- @
+-- SubZ      :: Substitute '[1,1] '[1,1] 1 1
+-- SubS SubZ :: Substitute '[1,1] '[1,1] 1 1
+-- autoSubstitute @'[1,1] @'[1,1] @1 @1 == SubZ
+-- @
+--
 -- @since 0.1.2.0
 autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute as bs x y
 autoSubstitute = auto @_ @(IsSubstitute as bs x) @y
-
 
 -- | Kind-indexed singleton for 'Substitute'.
 data SSubstitute as bs x y :: Substitute as bs x y -> Type where
@@ -341,7 +370,8 @@ subToDelIns = \case
 -- | An @'Edit' as bs@ is a reversible edit script transforming @as@ into
 -- @bs@ through successive insertions, deletions, and substitutions.
 --
--- TODO: implement Wagner-Fischer to minimize find a minimal edit distance
+-- TODO: implement Wagner-Fischer or something similar to minimize find
+-- a minimal edit distance
 data Edit :: [k] -> [k] -> Type where
     ENil :: Edit as as
     EIns :: Insert bs cs x -> Edit as bs -> Edit as cs

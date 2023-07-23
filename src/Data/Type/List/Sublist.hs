@@ -17,7 +17,7 @@
 
 -- |
 -- Module      : Data.Type.List.Sublist
--- Copyright   : (c) Justin Le 2018
+-- Copyright   : (c) Justin Le 2023
 -- License     : BSD3
 --
 -- Maintainer  : justin@jle.im
@@ -73,10 +73,10 @@ module Data.Type.List.Sublist (
 import           Data.Bifunctor
 import           Data.Functor.Compose
 import           Data.Kind
+import           Data.List.Singletons (SList(..), type (++))
 import           Data.Profunctor
 import           Data.Singletons
 import           Data.Singletons.Decide
-import           Data.Singletons.Prelude.List
 import           Data.Singletons.Sigma
 import           Data.Type.Functor.Product
 import           Data.Type.Predicate

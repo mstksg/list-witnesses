@@ -17,7 +17,7 @@
 
 -- |
 -- Module      : Data.Type.List.Edit
--- Copyright   : (c) Justin Le 2018
+-- Copyright   : (c) Justin Le 2023
 -- License     : BSD3
 --
 -- Maintainer  : justin@jle.im
@@ -68,10 +68,11 @@ module Data.Type.List.Edit (
   , SubstituteIndexSym0, SubstituteIndexSym
   ) where
 
+import           Data.Function.Singletons (IdSym0)
 import           Data.Kind
+import           Data.List.Singletons (SList(..))
 import           Data.Singletons
 import           Data.Singletons.Decide
-import           Data.Singletons.Prelude
 import           Data.Singletons.Sigma
 import           Data.Type.Functor.Product
 import           Data.Type.Predicate
@@ -198,7 +199,7 @@ autoInsert :: forall as bs x. Auto (IsInsert as bs) x => Insert as bs x
 autoInsert = auto @_ @(IsInsert as bs) @x
 
 -- | Kind-indexed singleton for 'Insert'.
-data SInsert as bs x :: Insert as bs x -> Type where
+data SInsert (as :: [k]) (bs :: [k]) (x :: k) :: Insert as bs x -> Type where
     SInsZ :: SInsert as (x ': as) x 'InsZ
     SInsS :: SInsert as bs x ins -> SInsert (a ': as) (a ': bs) x ('InsS ins)
 
@@ -286,7 +287,7 @@ autoDelete :: forall as bs x. Auto (IsDelete as bs) x => Delete as bs x
 autoDelete = auto @_ @(IsDelete as bs) @x
 
 -- | Kind-indexed singleton for 'Delete'.
-data SDelete as bs x :: Delete as bs x -> Type where
+data SDelete (as :: [k]) (bs :: [k]) (x :: k) :: Delete as bs x -> Type where
     SDelZ :: SDelete (x ': as) as x 'DelZ
     SDelS :: SDelete as bs x del -> SDelete (a ': as) (a ': bs) x ('DelS del)
 
@@ -347,7 +348,7 @@ autoSubstitute :: forall as bs x y. Auto (IsSubstitute as bs x) y => Substitute 
 autoSubstitute = auto @_ @(IsSubstitute as bs x) @y
 
 -- | Kind-indexed singleton for 'Substitute'.
-data SSubstitute as bs x y :: Substitute as bs x y -> Type where
+data SSubstitute (as :: [k]) (bs :: [k]) (x :: k) (y :: k) :: Substitute as bs x y -> Type where
     SSubZ :: SSubstitute (x ': as) (y ': as) x y 'SubZ
     SSubS :: SSubstitute as bs x y sub
           -> SSubstitute (c ': as) (c ': bs) x y ('SubS sub)
@@ -594,7 +595,7 @@ withInsertAfter = \case
 -- | Type-level version of 'insertIndex'.  Because of how GADTs and type
 -- families interact, the type-level lists and kinds of the insertion and
 -- index must be provided.
-type family InsertIndex as bs x y (ins :: Insert as bs x) (i :: Index as y) :: Index bs y where
+type family InsertIndex (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (ins :: Insert as bs x) (i :: Index as y) :: Index bs y where
     InsertIndex as        (x ': as) x y 'InsZ       i       = 'IS i
     InsertIndex (y ': as) (y ': bs) x y ('InsS ins) 'IZ     = 'IZ
     InsertIndex (a ': as) (a ': bs) x y ('InsS ins) ('IS i) = 'IS (InsertIndex as bs x y ins i)
@@ -623,14 +624,14 @@ sInsertIndex = \case
 
 -- | Helper type family for the implementation of 'DeleteIndex', to get
 -- around the lack of case statements at the type level.
-type family SuccDeletedIx b bs x y (del :: DeletedIx bs x y) :: DeletedIx (b ': bs) x y where
+type family SuccDeletedIx (b :: k) (bs :: [k]) (x :: k) (y :: k) (del :: DeletedIx bs x y) :: DeletedIx (b ': bs) x y where
     SuccDeletedIx b bs x x 'GotDeleted = 'GotDeleted
     SuccDeletedIx b bs x y ('NotDeleted i) = 'NotDeleted ('IS i)
 
 -- | Type-level version of 'deleteIndex'.  Because of how GADTs and type
 -- families interact, the type-level lists and kinds of the insertion and
 -- index must be provided.
-type family DeleteIndex as bs x y (del :: Delete as bs x) (i :: Index as y) :: DeletedIx bs x y where
+type family DeleteIndex (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (del :: Delete as bs x) (i :: Index as y) :: DeletedIx bs x y where
     DeleteIndex (x ': bs) bs         x x 'DelZ       'IZ     = 'GotDeleted
     DeleteIndex (x ': bs) bs         x y 'DelZ       ('IS i) = 'NotDeleted i
     DeleteIndex (y ': as) (y ': bs)  x y ('DelS del) 'IZ     = 'NotDeleted 'IZ
@@ -648,7 +649,7 @@ type instance Apply (DeleteIndexSym0 as bs x y) del = DeleteIndexSym as bs x y d
 type instance Apply (DeleteIndexSym as bs x y del) i = DeleteIndex as bs x y del i
 
 -- | Kind-indexed singleton for 'DeletedIx'.
-data SDeletedIx bs x y :: DeletedIx bs x y -> Type where
+data SDeletedIx (bs :: [k]) (x :: k) (y :: k) :: DeletedIx bs x y -> Type where
     SGotDeleted :: SDeletedIx bs x x 'GotDeleted
     SNotDeleted :: SIndex bs y i -> SDeletedIx bs x y ('NotDeleted i)
 
@@ -669,14 +670,14 @@ sDeleteIndex = \case
 
 -- | Helper type family for the implementation of 'SubstituteIndex', to get
 -- around the lack of case statements at the type level.
-type family SuccSubstitutedIx b bs x y z (s :: SubstitutedIx bs x y z) :: SubstitutedIx (b ': bs) x y z where
+type family SuccSubstitutedIx (b :: k) (bs :: [k]) (x :: k) (y :: k) (z :: k) (s :: SubstitutedIx bs x y z) :: SubstitutedIx (b ': bs) x y z where
     SuccSubstitutedIx b bs x y x ('GotSubbed i) = 'GotSubbed ('IS i)
     SuccSubstitutedIx b bs x y z ('NotSubbed i) = 'NotSubbed ('IS i)
 
 -- | Type-level version of 'substituteIndex'.  Because of how GADTs and
 -- type families interact, the type-level lists and kinds of the insertion
 -- and index must be provided.
-type family SubstituteIndex as bs x y z (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z where
+type family SubstituteIndex (as :: [k]) (bs :: [k]) (x :: k) (y :: k) (z :: k) (s :: Substitute as bs x y) (i :: Index as z) :: SubstitutedIx bs x y z where
     SubstituteIndex (z ': as) (y ': as) z y z 'SubZ     'IZ     = 'GotSubbed 'IZ
     SubstituteIndex (x ': as) (y ': as) x y z 'SubZ     ('IS i) = 'NotSubbed ('IS i)
     SubstituteIndex (z ': as) (z ': bs) x y z ('SubS s) 'IZ     = 'NotSubbed 'IZ
@@ -694,7 +695,7 @@ type instance Apply (SubstituteIndexSym0 as bs x y z) s = SubstituteIndexSym as 
 type instance Apply (SubstituteIndexSym as bs x y z s) i = SubstituteIndex as bs x y z s i
 
 -- | Kind-indexed singleton for 'SubstitutedIx'.
-data SSubstitutedIx bs x y z :: SubstitutedIx bs x y z -> Type where
+data SSubstitutedIx (bs :: [k]) (x :: k) (y :: k) (z :: k) :: SubstitutedIx bs x y z -> Type where
     SGotSubbed :: SIndex bs y i -> SSubstitutedIx bs z y z ('GotSubbed i)
     SNotSubbed :: SIndex bs z i -> SSubstitutedIx bs x y z ('NotSubbed i)
 

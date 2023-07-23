@@ -1,6 +1,15 @@
 Changelog
 =========
 
+Version 0.1.4.0
+---------------
+
+*July 22, 2023*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.4.0>
+
+*   Now requires singletons 3.0 and above, and GHC 9.2 and above.
+
 Version 0.1.3.2
 ---------------
 

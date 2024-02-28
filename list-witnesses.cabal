@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           list-witnesses
-version:        0.1.4.0
+version:        0.1.4.1
 synopsis:       Witnesses for working with type-level lists
 description:    Collection of assorted inductive witnesses and functions for working with
                 type-level lists.

@@ -1,6 +1,15 @@
 Changelog
 =========
 
+Version 0.1.4.1
+---------------
+
+*February 27, 2023*
+
+<https://github.com/mstksg/list-witnesses/releases/tag/v0.1.4.1>
+
+*   Remove upper bounds, fix deprecated pragmas
+
 Version 0.1.4.0
 ---------------
 
